@@ -1,0 +1,7 @@
+{
+    "dependencies": ".",
+    "graphs": {
+        "my_graph_id": "./your_package/your_file.py:variable"
+    },
+    "env": "./.env"
+}

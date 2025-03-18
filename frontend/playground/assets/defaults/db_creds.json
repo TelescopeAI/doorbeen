@@ -1,0 +1,58 @@
+{
+  "sql": {
+    "mysql": {
+      "host": "localhost",
+      "port": 3306,
+      "username": "root",
+      "password": "password",
+      "database": "public"
+    },
+    "postgresql": {
+      "host": "localhost",
+      "port": 5432,
+      "username": "postgres",
+      "password": "password",
+      "database": "public"
+    },
+    "oracle": {
+      "host": "localhost",
+      "port": 1521,
+      "username": "system",
+      "password": "password",
+      "database": "public"
+    },
+    "sqlserver": {
+      "host": "localhost",
+      "port": 1433,
+      "username": "sa",
+      "password": "password",
+      "database": "public"
+    },
+    "sqlite": {
+      "database": "public"
+    },
+    "bigquery": {
+      "project_id": "project_id",
+      "dataset_id": "dataset_id",
+      "service_account_json": "{}"
+    },
+    "snowflake": {
+      "account": "account",
+      "username": "username",
+      "password": "password",
+      "database": "database",
+      "warehouse": "warehouse",
+      "role": "role"
+    },
+    "redshift": {
+      "host": "localhost",
+      "port": 5439,
+      "username": "username",
+      "password": "password",
+      "database": "database"
+    }
+  },
+  "nosql": {
+
+  }
+}

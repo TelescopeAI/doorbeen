@@ -1,0 +1,99 @@
+version: '3'
+
+services:
+  server:
+    build: .
+    container_name: server
+    ports:
+      - "9001:9001"
+    environment:
+      - EXECUTION_ENV
+      - ENABLE_PROFILING
+      - HTTPS
+      - LOCAL_SSL_KEY
+      - LOCAL_SSL_CERT
+      - ALLOWED_ORIGINS
+      - TS_TOKEN_AUDIENCE
+      - GOOGLE_APPLICATION_CREDENTIALS
+      - ASSISTANT_MEMORY_LOCATION_URI=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-doorbeen}
+      - CLERK_BACKEND_API_KEY
+      - CLERK_ALLOWED_PARTIES
+    volumes:
+      - ./credentials:/app/credentials
+    depends_on:
+      - db
+    restart: unless-stopped
+    networks:
+      - doorbeen
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend/playground
+      dockerfile: Dockerfile
+      args:
+        - API_SERVER_URL
+        - NUXT_PUBLIC_API_SERVER_URL
+        - FORMKIT_PRO_LICENSE_KEY
+        - GOOGLE_OAUTH_CLIENT_ID
+        - GOOGLE_OAUTH_CLIENT_SECRET
+        - AUTH_SECRET
+        - CLERK_PUBLIC_KEY
+        - NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        - CLERK_SECRET_KEY
+        - NUXT_CLERK_SECRET_KEY
+        - CLERK_DOMAIN
+        - ALLOWED_DOMAINS
+        - GTAG_ID
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV
+      - VITE_API_SERVER_URL
+      - API_SERVER_URL
+      - NUXT_PUBLIC_API_SERVER_URL
+      - FORMKIT_PRO_LICENSE_KEY
+      - GOOGLE_OAUTH_CLIENT_ID
+      - GOOGLE_OAUTH_CLIENT_SECRET
+      - AUTH_SECRET
+      - CLERK_PUBLIC_KEY
+      - NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+      - CLERK_SECRET_KEY
+      - NUXT_CLERK_SECRET_KEY
+      - CLERK_DOMAIN
+      - ALLOWED_DOMAINS
+      - GTAG_ID
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - doorbeen
+
+  db:
+    image: postgres:15
+    container_name: db
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - doorbeen
+
+networks:
+  doorbeen:
+    driver: bridge
+
+volumes:
+  postgres_data:

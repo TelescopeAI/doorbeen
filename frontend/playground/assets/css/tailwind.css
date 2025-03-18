@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.tiptap .is-empty::before {
+    @apply text-slate-300;
+    @apply content-[attr(data-placeholder)];
+    @apply float-left;
+    @apply pointer-events-none;
+    @apply h-0;
+}
+
+/*If there is a table inside an article tag then set border collapse to seperate and spacing as 2rem 1rem*/
+@layer utilities {
+    article > table {
+        border-collapse: separate;
+        border-spacing: 2rem 1rem;
+        border: 1px solid;
+        border-radius: 8px;
+    }
+    article > th,td {
+        text-align: center;
+    }
+}
