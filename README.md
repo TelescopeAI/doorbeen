@@ -3,7 +3,7 @@ Doorbeen is an intelligent SQL assistant that connects Large Language Models (LL
 
 ## Features
 - **Natural Language Interface**: Ask questions about your data in plain English without writing SQL
-- **Multi-Database Support**: Connect to PostgreSQL, MySQL, Oracle, SQLite, BigQuery, and MongoDB
+- **Multi-Database Support**: Connect to PostgreSQL, MySQL, Oracle, SQLite, BigQuery.
 - **Intelligent Query Generation**: Translates questions into optimized SQL queries
 - **Error Handling**: Automatically detects and fixes SQL errors
 - **Result Analysis**: Analyzes query results and presents insights in an understandable format
@@ -12,26 +12,6 @@ Doorbeen is an intelligent SQL assistant that connects Large Language Models (LL
 - **Follow-up Questions**: Ask follow-up questions that maintain context from previous queries
 
 
-
-
-### Key Components
-
-- **SQLAgentGraphBuilder**: Builds the workflow graph for SQL query processing
-- **QueryGenerator**: Generates SQL queries based on user questions
-- **QueryExecutor**: Executes SQL queries against the connected database
-- **QueryResultsAnalysis**: Analyzes results and extracts insights
-- **FinalizeAnswerNode**: Creates final, human-readable answers
-
-## How It Works
-
-1. **Question Analysis**: When you ask a question, Doorbeen analyzes it to understand your intent and required data
-2. **Schema Understanding**: Examines your database schema to identify relevant tables and columns
-3. **Query Generation**: Translates your question into an optimized SQL query
-4. **Execution**: Runs the query against your database
-5. **Result Analysis**: Analyzes the query results for insights
-6. **Refinement**: If needed, refines the query to better match your intent
-7. **Presentation**: Formats the results and insights in a clear, human-readable way
-
 ## Supported Databases
 
 - PostgreSQL
@@ -39,7 +19,6 @@ Doorbeen is an intelligent SQL assistant that connects Large Language Models (LL
 - Oracle
 - SQLite
 - BigQuery
-- MongoDB
 
 ## Usage Example
 
@@ -72,58 +51,9 @@ response = assistant.ask_assistant(
 print(f"SQL Query: {response.query}")
 print(f"Results: {response.result}")
 ```
+### Reasoning Flow
+![Workflow Diagram](./api/workflow.png)
 
-
-                    ┌───────────────┐
-                    │ Input/Question│
-                    └───────┬───────┘
-                            │
-                    ┌───────▼────────┐
-                    │Input Assessment│
-                    └───────┬────────┘
-                            │
-               ┌────────────┴────────────┐
-               │                         │
-      ┌────────▼─────────┐     ┌─────────▼────────┐
-      │Follow-up Question│     │    New Question  │
-      └────────┬─────────┘     └────────┬─────────┘
-               │                        │
-    ┌──────────▼─────────┐     ┌────────▼───────┐
-    │Answer if Possible  │     │    QA Grade    │
-    │   Otherwise        │     └───────┬────────┘
-    │   Process Further  │             │
-    └──────────┬─────────┘     ┌───────▼────────┐
-               │               │  Input Enrich  │
-               │               │  (if needed)   │
-               │               └───────┬────────┘
-               │                       │
-               │               ┌───────▼────────┐
-               │               │    Interpret   │
-               │               └───────┬────────┘
-               │                       │
-               │               ┌───────▼────────┐
-               └──────────────►│ Generate Query │
-                               └───────┬────────┘
-                                       │
-                               ┌───────▼─────────┐
-                               │Execute SQL Query│
-                               └───────┬─────────┘
-                                       │
-                       ┌───────────────┴───────────────┐
-                       │                               │
-              ┌────────▼─────────┐          ┌──────────▼────────┐
-              │Process Results   │          │ Execution Failure │
-              └────────┬─────────┘          └──────────┬────────┘
-                       │                               │
-              ┌────────▼──────────┐                     │
-              │All Objectives Met?│                    │
-              └─────────┬─────────┘                    │
-                        │                              │
-           ┌────────────┴─────────────────┐            │
-           │                              │            │
-    ┌──────▼──────┐              ┌────────▼───────┐    │
-    │Final Answer │              │Regenerate Query│◄───┘
-    └─────────────┘              └────────────────┘
 
 ## Development
 
@@ -142,37 +72,15 @@ You can access the complete API documentation by navigating to the `/docs` route
 
 ### Building and Running with Docker
 
-1. **Build the Docker image**:
-   ```bash
-   docker build -t doorbeen .
-   ```
+#### Docker Compose:
+Make sure to add your environment files with the necessary configuration.
+Then run:
+```bash
+docker compose up
+```
+This command will create and start all the required services.
+After starting the container, you can access the application backend at http://localhost:9001, frontend at http://localhost:3000 and the API documentation at http://localhost:9001/api/v1/docs.
 
-2. **Run the container**:
-   ```bash
-   docker run -p 8000:8000 -e DATABASE_URL=your_connection_string -e API_KEY=your_llm_api_key doorbeen
-   ```
-
-3. **Using Docker Compose**:
-   
-   Create a `docker-compose.yml` file:
-   ```yaml
-   version: '3'
-   services:
-     doorbeen:
-       build: .
-       ports:
-         - "8000:8000"
-       environment:
-         - DATABASE_URL=your_connection_string
-         - API_KEY=your_llm_api_key
-   ```
-   
-   Then run:
-   ```bash
-   docker-compose up
-   ```
-
-After starting the container, you can access the application at `http://localhost:8000` and the API documentation at `http://localhost:8000/docs`.
 
 ## License
 

@@ -172,6 +172,7 @@ dummy/*
 frontend/playground/node_modules/
 frontend/playground/.nuxt/
 frontend/playground/.output/
+frontend/playground/.dist
 frontend/playground/.dist/
 frontend/playground/.data/
 

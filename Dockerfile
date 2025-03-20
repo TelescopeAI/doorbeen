@@ -43,4 +43,3 @@ ENTRYPOINT ["gunicorn", "-w", "4", \
             "--log-level", "debug", \
             "--logger-class", "gunicorn.glogging.Logger", \
             "api.main:app"]
-
