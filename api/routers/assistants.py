@@ -13,7 +13,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg import AsyncConnection
 from starlette.responses import StreamingResponse
 
-from api.schemas.requests.agents import AskLLMRequest, AskLLMRequestV2
+from api.schemas.requests.assistants import AskLLMRequest, AskLLMRequestV2
 from core.assistants.analysis.sql.query.graph.builder import SQLAgentGraphBuilder
 from core.assistants.memory.locations.postgres import PostgresLocation
 from core.config.execution_env import ExecutionEnv

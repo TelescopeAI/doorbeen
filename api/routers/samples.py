@@ -4,7 +4,7 @@ import os
 from fastapi import APIRouter
 from fastapi_cache.decorator import cache
 
-from api.schemas.requests.agents import DBConnectionRequestParams
+from api.schemas.requests.assistants import DBConnectionRequestParams
 from core.config.execution_env import ExecutionEnv
 from core.connections.clients.SQL.bigquery import BigQueryClient
 from core.connections.clients.service import DBClientService

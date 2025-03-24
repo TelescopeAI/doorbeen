@@ -9,4 +9,3 @@ class DatabaseTypes(Enum):
     BIGQUERY = 'bigquery'
     SNOWFLAKE = 'snowflake'
     REDSHIFT = 'redshift'
-    MONGODB = 'mongodb'

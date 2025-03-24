@@ -74,16 +74,24 @@ async def startup():
     FastAPICache.init(InMemoryBackend())
 
 
-app.add_middleware(CORSMiddlewareCustom)
+# app.add_middleware(CORSMiddlewareCustom)
 
 # FastAPIInstrumentor.instrument_app(app)
 if not ExecutionEnv.is_local():
     print("Applying gunicorn headers in an non local environment")
-    SecWeb(app=app, Option={'coep': {'Cross-Origin-Embedder-Policy': 'require-corp'},
-                            'coop': {'Cross-Origin-Opener-Policy': 'same-origin'},
-                            'xss': {'X-XSS-Protection': '1; mode=block'},
-                            'hsts': {'max-age': 31536000, 'includeSubDomains': True, 'preload': True}
-                            })
+    SecWeb(app=app, Option={
+                            'coep': 'credentialless',
+                            'coop': 'same-origin',
+                            'xss': '1; mode=block',
+                            'hsts': {'max-age': 31536000, 'includeSubDomains': True, 'preload': True},
+                            'csp': {
+                                'script-src': ["'self'", "'unsafe-eval'", "'unsafe-inline'", "cdn.jsdelivr.net"],
+                                'img-src': ["'self'", "data:", "fastapi.tiangolo.com", "*"],
+                                'style-src': ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
+                                'connect-src': ["'self'", "*"],
+                                'font-src': ["'self'", "data:", "fonts.scalar.com"]
+                            }
+                           })
     gunicorn_logger = logging.getLogger("gunicorn")
     log_level = gunicorn_logger.level
 

@@ -1,7 +1,7 @@
 from typing import Optional
 
-from pydantic import Field as FieldV2
 from pydantic import Field
+from pydantic import Field as FieldV2
 
 from core.types.databases import DatabaseTypes
 from core.types.ts_model import TSModel
@@ -26,7 +26,42 @@ class AskLLMRequest(TSModel):
 
 class DBConnectionRequestParamsV2(TSModel):
     db_type: DatabaseTypes
-    credentials: dict = FieldV2(..., description="The credentials for the database connection")
+    credentials: dict = FieldV2(
+        ..., 
+        description="The credentials for the database connection",
+        examples=[
+            {
+                "db_type": "mysql",
+                "credentials": {
+                    "host": "localhost",
+                    "port": "3306",
+                    "username": "root",
+                    "password": "password",
+                    "database": "sandbox",
+                    "dialect": "mysql"
+                }
+            },
+            {
+                "db_type": "postgresql",
+                "credentials": {
+                    "host": "localhost",
+                    "port": "5432",
+                    "username": "postgres_user",
+                    "password": "password",
+                    "database": "sandbox",
+                    "dialect": "postgresql"
+                }
+            },
+            {
+                "db_type": "bigquery",
+                "credentials": {
+                    "project_id": "my-project-id",
+                    "dataset_id": "my_dataset",
+                    "service_account_details": "{dict of service account details}"
+                }
+            },
+        ]
+    )
 
 
 class ModelMetaRequestV2(TSModel):

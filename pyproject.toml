@@ -9,7 +9,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
 langchain = "0.3.2"
-fastapi = {extras = ["all"], version = "0.114.1"}
+fastapi = {extras = ["all"], version = "0.115.11"}
 pydantic = "2.9.2"
 uvicorn = {extras = ["standard"], version = "^0.32.1"}
 sqlalchemy = "2.0.29"
@@ -30,7 +30,7 @@ matplotlib = "^3.9.1"
 prophet = "^1.1.5"
 scipy = "^1.14.0"
 fastapi-cache2 = "^0.2.1"
-langgraph = "^0.2.34"
+langgraph = "^0.3.18"
 langchain-anthropic = "^0.2.1"
 langchain-google-genai = "2.0.0"
 ipython = "^8.26.0"

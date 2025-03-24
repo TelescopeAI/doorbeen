@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Body
 
-from api.schemas.requests.agents import DBConnectionRequestParams, DBConnectionRequestParamsV2
+from api.schemas.requests.assistants import DBConnectionRequestParams, DBConnectionRequestParamsV2
 from api.schemas.response.validators import DBValidationResult
 from core.connections.clients.SQL.common import CommonSQLClient
 from core.connections.clients.service import DBClientService

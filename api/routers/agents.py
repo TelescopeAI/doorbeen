@@ -4,7 +4,7 @@ from deprecated import deprecated
 from fastapi import APIRouter, Body, WebSocket
 from starlette.responses import StreamingResponse
 
-from api.schemas.requests.agents import AskLLMRequest, AskLLMRequestV2
+from api.schemas.requests.assistants import AskLLMRequest, AskLLMRequestV2
 from api.utils.sockets.common import WebSocketManager
 from core.agents.sql import SQLAgent
 from core.connections.clients.SQL.bigquery import BigQueryClient
