@@ -1,4 +1,13 @@
-# Doorbeen
+```
+      _                   _                       
+     | |                 | |                      
+   __| | ___   ___  _ __ | |__   ___  ___ _ __   
+  / _` |/ _ \ / _ \| '__|| '_ \ / _ \/ _ \ '_ \  
+ | (_| | (_) | (_) | |   | |_) |  __/  __/ | | | 
+  \__,_|\___/ \___/|_|   |_.__/ \___|\___|_| |_| 
+                                                  
+```
+
 Doorbeen is an intelligent SQL assistant that connects Large Language Models (LLMs) with databases, allowing users to interact with their data using natural language. Ask questions about your data in plain English, and Doorbeen translates them into SQL queries, executes them, and presents the results in a human-readable format.
 
 ## Features
