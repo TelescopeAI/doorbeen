@@ -23,14 +23,10 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     // Private keys are only available on the server
-    googleOAuthClientID: process.env.GOOGLE_OAUTH_CLIENT_ID,
-    googleOAuthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-    authSecret: process.env.AUTH_SECRET,
     allowedCORSDomains: cors_allow_list,
     environment: process.env.NODE_ENV,
     // Public keys that are exposed to the client
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || '/api',
       apiServerURL: process.env.API_SERVER_URL || '/api',
       clerkPublicKey: process.env.CLERK_PUBLIC_KEY,
       clerkDomain: process.env.CLERK_DOMAIN,
@@ -50,7 +46,7 @@ export default defineNuxtConfig({
     "@nuxt/image",
     "nuxt-gtag",
     "@nuxt/icon",
-    "vue-clerk/nuxt",
+    "@clerk/nuxt",
     "@nuxtjs/mdc"
   ],
 

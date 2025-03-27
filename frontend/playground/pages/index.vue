@@ -14,7 +14,7 @@ import { getAPIServerURL } from "~/composables/server";
 import Panel from 'primevue/panel';
 import Card from 'primevue/card';
 import {SSEService} from "~/core/streaming/sse";
-import { useAuth, useSession } from 'vue-clerk'
+import { useAuth, useSession } from '@clerk/vue'
 
 const toast = useToast();
 const connection = reactive({

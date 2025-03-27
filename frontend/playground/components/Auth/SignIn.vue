@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { SignIn } from "vue-clerk";
-import { useAuth } from "vue-clerk";
+import { SignIn } from '@clerk/vue';
+import { useAuth } from '@clerk/vue';
 
 const router = useRouter()
 const {isLoaded, isSignedIn} = useAuth()

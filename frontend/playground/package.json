@@ -11,6 +11,7 @@
     "postinstall": "npx nuxi prepare"
   },
   "dependencies": {
+    "@clerk/nuxt": "^1.4.4",
     "@formkit/addons": "^1.6.9",
     "@formkit/nuxt": "1.6.9",
     "@formkit/pro": "0.126.9",
@@ -39,7 +40,6 @@
     "tailwindcss-primeui": "^0.5.1",
     "uuid": "^11.1.0",
     "vue": "^3.5.13",
-    "vue-clerk": "^0.10.1",
     "vue-router": "^4.5.0"
   },
   "packageManager": "yarn@1.22.19+sha1.4ba7fc5c6e704fce2066ecbfb0b0d8976fe62447"

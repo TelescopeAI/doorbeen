@@ -20,6 +20,38 @@ Doorbeen is an intelligent SQL assistant that connects Large Language Models (LL
 - SQLite
 - BigQuery
 
+## Before you get started
+
+### Clerk Authentication
+Doorbeen uses Clerk for user authentication. You'll need to create a Clerk account and set up an application to obtain your API keys.
+For Clerk authentication setup, please refer to the [official documentation](https://clerk.com/docs/quickstarts/setup-clerk).
+
+### FormKit Pro Components
+Doorbeen uses FormKit Pro components (Toggle Button and Dropdown) in the frontend playground. A FormKit Pro license is only required for usage in production instances:
+1. Purchase a FormKit Pro license from https://formkit.com/
+2. Add your license key to the environment variables
+For more information on FormKit Pro, visit the [FormKit Pro documentation](https://formkit.com/pro).
+
+
+### Environment Setup
+The repository contains example environment files that you should use as templates:
+1. Root directory: Copy `example.env` to `local.env` and update the values:
+```bash
+cp example.env local.env
+```
+
+2. Frontend playground: Copy `frontend/playground/example.env` to `frontend/playground/local.env` and update the values:
+```bash
+cp frontend/playground/example.env frontend/playground/local.env
+```
+Be sure to replace placeholder values with your actual credentials:
+- Replace `sk_test_password` with your Clerk Backend API Key
+- Replace `pk_test_<unique-id>` with your Clerk Publishable Key
+- Replace `sk_test_<unique-id>` with your Clerk Secret Key
+- Update other environment variables as needed
+
+
+
 ## Usage Example
 
 ```python
@@ -63,6 +95,13 @@ Doorbeen uses a modular architecture that makes it easy to add new capabilities:
 - Create new analysis nodes for specialized data processing
 - Extend visualization capabilities for different data types
 - Add new LLM models for improved performance
+
+### Using direnv for automatic environment loading
+The repository provides `.envrc` files in both the root and `frontend/playground` directories. If you use `direnv`, these files will automatically load the environment variables from your `.env` files.
+To use `direnv`:
+1. Install `direnv` following the official installation instructions
+2. Run `direnv allow` in both the root directory and the `frontend/playground` directory
+3. `direnv` will automatically load your environment variables when you navigate to these directories
 
 ## API Documentation
 

@@ -21,7 +21,6 @@ RUN poetry config virtualenvs.create false && poetry install --only main --no-ro
 RUN export DOCKER_DEFAULT_PLATFORM=linux/amd64
 
 # Copy core
-COPY ./credentials /app/credentials/
 COPY ./core /app/core/
 COPY ./api /app/api/
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {useAuth} from "vue-clerk";
+import { useAuth } from '@clerk/vue';
 const router = useRouter()
 const { isLoaded, isSignedIn } = useAuth()
 watch(isLoaded, (val) => {

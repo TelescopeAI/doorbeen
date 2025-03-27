@@ -116,7 +116,7 @@ const retry_request = () => {
   console.log("Retrying... [ConversationsContainer]");
   emit('retry');
 }
-import { useUser } from 'vue-clerk'
+import { useUser } from '@clerk/vue'
 
 const { isLoaded, user } = useUser()
 const user_profile_image = ref(user.value?.imageUrl)

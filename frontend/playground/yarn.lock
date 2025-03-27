@@ -255,17 +255,29 @@
     snakecase-keys "8.0.1"
     tslib "2.4.1"
 
-"@clerk/shared@^2.20.6":
-  version "2.22.0"
-  resolved "https://registry.yarnpkg.com/@clerk/shared/-/shared-2.22.0.tgz#c5c5b6f24241370a0ebb0e0109e8812219f55f9a"
-  integrity sha512-VWBeddOJVa3sqUPdvquaaQYw4h5hACSG3EUDOW7eSu2F6W3BXUozyLJQPBJ9C0MuoeHhOe/DeV8x2KqOgxVZaQ==
+"@clerk/backend@^1.25.6":
+  version "1.25.6"
+  resolved "https://registry.yarnpkg.com/@clerk/backend/-/backend-1.25.6.tgz#9799a02dad43112c5e8ebee175cc8bfb350bccf8"
+  integrity sha512-JxHs9OXhx37RWK5rO3IITh+KP3EYQed9rLZiJKvQxr7A7plYAJhK8BzjNXAE5IXZbCZjkOGFyynmuXnjnyUqaw==
   dependencies:
-    "@clerk/types" "^4.46.1"
-    dequal "2.0.3"
-    glob-to-regexp "0.4.1"
-    js-cookie "3.0.5"
-    std-env "^3.7.0"
-    swr "^2.2.0"
+    "@clerk/shared" "^3.2.1"
+    "@clerk/types" "^4.49.2"
+    cookie "1.0.2"
+    snakecase-keys "8.0.1"
+    tslib "2.8.1"
+
+"@clerk/nuxt@^1.4.4":
+  version "1.4.4"
+  resolved "https://registry.yarnpkg.com/@clerk/nuxt/-/nuxt-1.4.4.tgz#c8b234d3945dbca8f47743c213b796552d748567"
+  integrity sha512-aBI7a+Gx/2dbtCXSMuxIjZwE26zSj27DWBFc4+MZ/DcaqCP7RhfjIHwZ6mpMmBDfjVAz8BH4RTo4wF5ZTGuixA==
+  dependencies:
+    "@clerk/backend" "^1.25.6"
+    "@clerk/shared" "^3.2.1"
+    "@clerk/types" "^4.49.2"
+    "@clerk/vue" "^1.4.3"
+    "@nuxt/kit" "^3.16.0"
+    "@nuxt/schema" "^3.16.0"
+    h3 "^1.15.1"
 
 "@clerk/shared@^3.0.1":
   version "3.0.1"
@@ -279,12 +291,39 @@
     std-env "^3.7.0"
     swr "^2.2.0"
 
-"@clerk/types@^4.40.2", "@clerk/types@^4.46.1", "@clerk/types@^4.48.0":
+"@clerk/shared@^3.2.1":
+  version "3.2.1"
+  resolved "https://registry.yarnpkg.com/@clerk/shared/-/shared-3.2.1.tgz#3f82f7055d1f45493003233d443c959589224ada"
+  integrity sha512-KLLb/AohQH/p+XcRAwtijQRmnZA/dfCu+jkY6nDDS5J3PQDl/cUxuRVCCTeitOrCzwP7vLxowKz6cSqUq5Irlg==
+  dependencies:
+    "@clerk/types" "^4.49.2"
+    dequal "2.0.3"
+    glob-to-regexp "0.4.1"
+    js-cookie "3.0.5"
+    std-env "^3.7.0"
+    swr "^2.2.0"
+
+"@clerk/types@^4.48.0":
   version "4.48.0"
   resolved "https://registry.yarnpkg.com/@clerk/types/-/types-4.48.0.tgz#1a26e33b851998c0eb28cfd63e842a4e47120393"
   integrity sha512-zuWeEMxgtuxLKQCnzioSwuCFJVk1rVO+rXFhD8aBcyvBH6fadGp4IZzh7/Ov1HRiqpku5xPc010uubgC7jXMeQ==
   dependencies:
     csstype "3.1.3"
+
+"@clerk/types@^4.49.2":
+  version "4.49.2"
+  resolved "https://registry.yarnpkg.com/@clerk/types/-/types-4.49.2.tgz#4b26994c8c2fda72b86574051d15ef604c569e33"
+  integrity sha512-b4LR3Xsegqe0S6ZkaSJ1skO5a36EIiYRCFBzrJIbJX58vh25FFbOs4VHcK71uCLGJ1Jm1bViPi8QPGYoqYAUuw==
+  dependencies:
+    csstype "3.1.3"
+
+"@clerk/vue@^1.4.3":
+  version "1.4.3"
+  resolved "https://registry.yarnpkg.com/@clerk/vue/-/vue-1.4.3.tgz#a3d356e8fdbf32cca01addb7cdbe872e7c4f4d27"
+  integrity sha512-LMi6PphA/ypz1L5ag0wisPy7axQkUmdkomXUH87iwTH/8aMRPvWeEnFHB+JEVGDDiUyhlLiKS9bIfnUuLrbmtQ==
+  dependencies:
+    "@clerk/shared" "^3.2.1"
+    "@clerk/types" "^4.49.2"
 
 "@cloudflare/kv-asset-handler@^0.3.4":
   version "0.3.4"
@@ -7786,7 +7825,7 @@ tslib@2.4.1:
   resolved "https://registry.yarnpkg.com/tslib/-/tslib-2.4.1.tgz#0d0bfbaac2880b91e22df0768e55be9753a5b17e"
   integrity sha512-tGyy4dAjRIEwI7BzsB0lynWgOpfqjUdq91XXAlIWD2OwKBH7oCl/GZG/HT4BOHrTlPMOASlMQ7veyTqpmRcrNA==
 
-tslib@^2.0.3, tslib@^2.4.0:
+tslib@2.8.1, tslib@^2.0.3, tslib@^2.4.0:
   version "2.8.1"
   resolved "https://registry.yarnpkg.com/tslib/-/tslib-2.8.1.tgz#612efe4ed235d567e8aba5f2a5fab70280ade83f"
   integrity sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==
@@ -8246,14 +8285,6 @@ vue-bundle-renderer@^2.1.1:
   integrity sha512-+qALLI5cQncuetYOXp4yScwYvqh8c6SMXee3B+M7oTZxOgtESP0l4j/fXdEJoZ+EdMxkGWIj+aSEyjXkOdmd7g==
   dependencies:
     ufo "^1.5.4"
-
-vue-clerk@^0.10.1:
-  version "0.10.1"
-  resolved "https://registry.yarnpkg.com/vue-clerk/-/vue-clerk-0.10.1.tgz#966d74784ae3d7af39301b0fced9935c2df98e59"
-  integrity sha512-nTPdPT3nxVXPKJv4GYmMJEMxwduifcm7cf/rOpxd4iRi4dE37HADPrI6+ryntQYPezRse7IuXJYmKdGskVQl6g==
-  dependencies:
-    "@clerk/shared" "^2.20.6"
-    "@clerk/types" "^4.40.2"
 
 vue-component-meta@^2.2.0:
   version "2.2.8"

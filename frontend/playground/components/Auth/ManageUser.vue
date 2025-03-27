@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-import {SignedIn, SignedOut, SignInButton, useAuth, UserButton} from "vue-clerk";
+import {SignedIn, SignedOut, SignInButton, useAuth, UserButton} from '@clerk/vue';
 const {
   isSignedIn,
 } = useAuth()
