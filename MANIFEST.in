@@ -1,0 +1,9 @@
+# MANIFEST.in
+exclude credentials/*
+exclude .env*
+exclude *.env
+exclude deploy/secrets/*
+global-exclude *.pem
+global-exclude *.key
+global-exclude __pycache__/*
+global-exclude *.py[cod]

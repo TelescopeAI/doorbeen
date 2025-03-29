@@ -1,9 +1,29 @@
 [tool.poetry]
 name = "Doorbeen"
-version = "0.1.0"
-description = "About"
-authors = ["Framework to connect LLMs to Internal Databases(SQL and NoSQL)"]
+version = "0.0.1"
+description = "Framework to connect LLMs to Internal Databases(SQL and NoSQL)"
+authors = ["Telescope <info@jointelescope.com>"]
 readme = "README.md"
+homepage = "https://jointelescope.com"
+repository = "https://github.com/TelescopeAI/doorbeen"
+documentation = "https://github.com/TelescopeAI/doorbeen"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+packages = [
+    {include = "core", from = "."},
+    {include = "api", from = "."},
+]
+exclude = [
+    "credentials/*",
+    ".env*",
+    "*.env",
+    "deploy/secrets/*",
+    "**/*.pem",
+    "**/*.key"
+]
 
 
 [tool.poetry.dependencies]
@@ -21,7 +41,7 @@ httpx = "^0.27.0"
 langchain-community = "0.3.1"
 langchain-openai = "0.2.1"
 langchain-experimental = "0.3.2"
-sqlalchemy-bigquery = {extras = ["bqstorage"], version = "^1.11.0"}
+sqlalchemy-bigquery = {extras = ["bqstorage"], version = "^1.13.0"}
 google-cloud-bigquery-storage = "^2.25.0"
 kaggle = "^1.6.14"
 pymysql = "^1.1.1"

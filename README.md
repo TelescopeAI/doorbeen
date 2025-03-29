@@ -64,8 +64,9 @@ Be sure to replace placeholder values with your actual credentials:
 ## Usage Example
 
 ```python
-from doorbeen import SQLAssistant
-from core.models.model import ModelInstance
+from core.assistants.analysis.sql.main import SQLAssistant
+from core.connections.clients.SQL.common import CommonSQLClient
+from core.models.provider import ModelProvider
 
 # Configure database connection
 db_credentials = {
@@ -76,11 +77,13 @@ db_credentials = {
     "database": "mydb"
 }
 
+model_handler = ModelProvider().get_model_instance(model_name="gpt-4o", api_key="sk-proj-key")
+
 # Initialize SQL assistant
 assistant = SQLAssistant(
     client=CommonSQLClient(credentials=db_credentials),
     db_type="postgresql",
-    model=ModelInstance(name="gpt-4", api_key="your-api-key")
+    model=model_handler.model
 )
 
 # Ask a question in natural language

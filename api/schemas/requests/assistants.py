@@ -73,4 +73,4 @@ class AskLLMRequestV2(TSModel):
     question: str = FieldV2(..., description="The question to ask the model")
     model: ModelMetaRequestV2
     connection: DBConnectionRequestParamsV2
-    stream: bool = FieldV2(False, description="Whether to stream the response or not")
+    stream: bool = FieldV2(True, description="Whether to stream the response or not")
