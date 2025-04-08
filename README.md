@@ -37,7 +37,7 @@ For Clerk authentication setup, please refer to the [official documentation](htt
 
 ### FormKit Pro Components
 Doorbeen uses FormKit Pro components (Toggle Button and Dropdown) in the frontend playground. A FormKit Pro license is only required for usage in production instances:
-1. Purchase a FormKit Pro license from https://formkit.com/
+1. Purchase a FormKit Pro license from [Formkit](https://formkit.com/).
 2. Add your license key to the environment variables
 For more information on FormKit Pro, visit the [FormKit Pro documentation](https://formkit.com/pro).
 
@@ -61,40 +61,82 @@ Be sure to replace placeholder values with your actual credentials:
 
 
 
-## Usage Example
+## Get Started
+
+Doorbeen can be used either as a Python package in your application or deployed as a standalone service using Docker (which includes a Playground UI). Here's how to use it as a package:
+
+### Installation
+
+```bash
+pip install doorbeen
+```
+
+### Python Usage
 
 ```python
-from core.assistants.analysis.sql.main import SQLAssistant
-from core.connections.clients.SQL.common import CommonSQLClient
-from core.models.provider import ModelProvider
+import asyncio
+import json
+from doorbeen.api.schemas.requests.assistants import AskLLMRequest, DBConnectionRequestParams, ModelMetaRequest
+from doorbeen.core.chat.assistants import AssistantService
+from doorbeen.core.types.databases import DatabaseTypes
 
-# Configure database connection
 db_credentials = {
-    "host": "localhost",
-    "port": 5432,
-    "username": "user",
-    "password": "password",
-    "database": "mydb"
-}
+                "host": "localhost",
+                "port": 5432,
+                "username": "user",
+                "password": "password",
+                "database": "mydb",
+                "dialect": "postgresql",
+            }
+model = {"name": "gpt-4o", "api_key": "<your_api_key>"}
 
-model_handler = ModelProvider().get_model_instance(model_name="gpt-4o", api_key="sk-proj-key")
 
-# Initialize SQL assistant
-assistant = SQLAssistant(
-    client=CommonSQLClient(credentials=db_credentials),
-    db_type="postgresql",
-    model=model_handler.model
-)
+async def main():
+    # Create a request object with database connection details
+    request = AskLLMRequest(
+        question="What is the trend of user signups over the last 6 months, broken down by region?",
+        connection=DBConnectionRequestParams(
+            db_type=DatabaseTypes.POSTGRESQL,
+            credentials=db_credentials
+        ),
+        model=ModelMetaRequest(**model), stream=True)
 
-# Ask a question in natural language
-response = assistant.ask_assistant(
-    question="What were our top 5 customers by revenue last month?"
-)
+    # Initialize the Assistant Service
+    assistant_service = AssistantService()
 
-# Access the results
-print(f"SQL Query: {response.query}")
-print(f"Results: {response.result}")
+    # Example 1: Non-streaming response
+    results = await assistant_service.process_llm_request(request, stream=False)
+    print("Results:")
+    for result in results:
+        print("Event:", {
+            "type": result['type'],
+            "name": result['name'],
+            "data": result['data'],
+            "timestamp": result['occurred_at']
+        })
+        # If you need to parse the data field (which appears to be a JSON string)
+        try:
+            data = json.loads(result['data'])
+            print("Parsed data:", data)
+        except json.JSONDecodeError:
+            print("Raw data:", result['data'])
+
+    # Example 2: Streaming response
+    print("\nStreaming response:")
+    async_generator = await assistant_service.process_llm_request(request, stream=True)
+
+    async for chunk in async_generator:
+        # In a real application, you would send these chunks to the client
+        print(f"Received chunk: {chunk}")
+
+
+# Run the async example
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
+
+For deploying as a standalone service with the Playground UI, refer to the Docker deployment instructions below.
+
 ### Reasoning Flow
 ![Workflow Diagram](./api/workflow.png)
 

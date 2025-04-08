@@ -1,27 +1,21 @@
 # Build stage
 FROM node:22-alpine AS build
-
-RUN corepack enable
-
 WORKDIR /app
+RUN corepack enable
+RUN corepack use yarn@latest
 
 # Add build dependencies
 RUN apk add --no-cache python3 make g++ sqlite-dev
 
 # Define build args for all environment variables
 ARG NODE_ENV
-ARG VITE_API_SERVER_URL
 ARG API_SERVER_URL
-ARG NUXT_PUBLIC_API_SERVER_URL
 ARG FORMKIT_PRO_LICENSE_KEY
 ARG NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ARG NUXT_CLERK_SECRET_KEY
 ARG CLERK_DOMAIN
 ARG ALLOWED_DOMAINS
 ARG GTAG_ID
-ARG POSTGRES_USER
-ARG POSTGRES_PASSWORD
-ARG POSTGRES_DB
 
 # Copy package.json and yarn.lock
 COPY package*.json yarn.lock* ./
@@ -35,19 +29,16 @@ COPY . .
 # Create .env file with all environment variables
 RUN touch .env && \
     [ ! -z "$NODE_ENV" ] && echo "NODE_ENV=${NODE_ENV}" >> .env || true && \
-    [ ! -z "$VITE_API_SERVER_URL" ] && echo "VITE_API_SERVER_URL=${VITE_API_SERVER_URL}" >> .env || true && \
     [ ! -z "$API_SERVER_URL" ] && echo "API_SERVER_URL=${API_SERVER_URL}" >> .env || true && \
-    [ ! -z "$NUXT_PUBLIC_API_SERVER_URL" ] && echo "NUXT_PUBLIC_API_SERVER_URL=${NUXT_PUBLIC_API_SERVER_URL}" >> .env || true && \
     [ ! -z "$FORMKIT_PRO_LICENSE_KEY" ] && echo "FORMKIT_PRO_LICENSE_KEY=${FORMKIT_PRO_LICENSE_KEY}" >> .env || true && \
-    [ ! -z "$GOOGLE_OAUTH_CLIENT_SECRET" ] && echo "GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}" >> .env || true && \
     [ ! -z "$NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ] && echo "NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY}" >> .env || true && \
     [ ! -z "$NUXT_CLERK_SECRET_KEY" ] && echo "NUXT_CLERK_SECRET_KEY=${NUXT_CLERK_SECRET_KEY}" >> .env || true && \
     [ ! -z "$CLERK_DOMAIN" ] && echo "CLERK_DOMAIN=${CLERK_DOMAIN}" >> .env || true && \
     [ ! -z "$ALLOWED_DOMAINS" ] && echo "ALLOWED_DOMAINS=${ALLOWED_DOMAINS}" >> .env || true && \
-    [ ! -z "$GTAG_ID" ] && echo "GTAG_ID=${GTAG_ID}" >> .env || true && \
-    [ ! -z "$POSTGRES_USER" ] && echo "POSTGRES_USER=${POSTGRES_USER}" >> .env || true && \
-    [ ! -z "$POSTGRES_PASSWORD" ] && echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> .env || true && \
-    [ ! -z "$POSTGRES_DB" ] && echo "POSTGRES_DB=${POSTGRES_DB}" >> .env || true
+    [ ! -z "$GTAG_ID" ] && echo "GTAG_ID=${GTAG_ID}" >> .env || true
+
+# Print .env file contents for debugging
+RUN echo "==== .env file contents ====" && cat .env
 
 # Generate static files
 RUN yarn generate || (echo "Build failed. See error above." && exit 1)
@@ -56,9 +47,10 @@ RUN yarn generate || (echo "Build failed. See error above." && exit 1)
 FROM node:22-alpine AS serve
 
 WORKDIR /app
+RUN corepack enable
 
-# Install serve globally
-RUN yarn global add serve
+# Install serve using npm instead of yarn global
+RUN npm install -g serve
 
 # Copy built assets from the build stage
 COPY --from=build /app/.output/public ./public

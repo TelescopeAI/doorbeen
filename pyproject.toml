@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "Doorbeen"
+name = "doorbeen"
 version = "0.0.1"
 description = "Framework to connect LLMs to Internal Databases(SQL and NoSQL)"
 authors = ["Telescope <info@jointelescope.com>"]
@@ -12,10 +12,11 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+
 packages = [
-    {include = "core", from = "."},
-    {include = "api", from = "."},
+    {include = "doorbeen", from = "."}
 ]
+
 exclude = [
     "credentials/*",
     ".env*",
@@ -28,47 +29,42 @@ exclude = [
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
-langchain = "0.3.2"
-fastapi = {extras = ["all"], version = "0.115.11"}
-pydantic = "2.9.2"
-uvicorn = {extras = ["standard"], version = "^0.32.1"}
-sqlalchemy = "2.0.29"
+langchain = "0.3.22"
+fastapi = {extras = ["all"], version = "0.115.12"}
+pydantic = "2.11.1"
+uvicorn = {extras = ["standard"], version = "^0.34.0"}
+sqlalchemy = "2.0.40"
 psycopg-binary = "^3.1.18"
 pymongo = "^4.6.3"
 secweb = "^1.9.1"
-openai = "1.40.1"
-httpx = "^0.27.0"
-langchain-community = "0.3.1"
-langchain-openai = "0.2.1"
-langchain-experimental = "0.3.2"
+openai = "1.69.0"
+httpx = "^0.28.1"
+langchain-community = "0.3.20"
+langchain-openai = "0.3.11"
+langchain-experimental = "0.3.4"
 sqlalchemy-bigquery = {extras = ["bqstorage"], version = "^1.13.0"}
-google-cloud-bigquery-storage = "^2.25.0"
+google-cloud-bigquery-storage = "^2.30.0"
 kaggle = "^1.6.14"
 pymysql = "^1.1.1"
-pandas = "^2.2.2"
-matplotlib = "^3.9.1"
-prophet = "^1.1.5"
-scipy = "^1.14.0"
 fastapi-cache2 = "^0.2.1"
 langgraph = "^0.3.18"
-langchain-anthropic = "^0.2.1"
-langchain-google-genai = "2.0.0"
-ipython = "^8.26.0"
-statsmodels = "^0.14.2"
-pypdf = "^4.3.1"
-langchain-ollama = "0.2.0"
-chromadb = "^0.5.5"
-weaviate-client = "^4.8.0"
-faiss-cpu = "^1.8.0.post1"
-pymilvus = "^2.4.6"
-langchain-chroma = "0.1.4"
+langchain-anthropic = "^0.3.10"
+langchain-google-genai = "2.1.2"
+langchain-ollama = "0.3.0"
 psycopg = {extras = ["binary", "pool"], version = "^3.2.3"}
 psycopg-pool = "^3.2.3"
 langgraph-checkpoint-postgres = "^2.0.1"
-clerk-backend-api = "^1.2.0"
+clerk-backend-api = "^2.0.0"
 scalar-fastapi = "^1.0.3"
+deprecated = "^1.2.18"
+pytz = "^2024.1"
 
+
+[[tool.poetry.source]]
+name = "localpip"
+url = "http://localhost:8300/simple"
+priority = "supplemental"
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=1.0.0", "setuptools>=42"]
 build-backend = "poetry.core.masonry.api"

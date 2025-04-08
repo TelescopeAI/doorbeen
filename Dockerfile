@@ -11,18 +11,21 @@ RUN pip install poetry
 RUN cd ~
 RUN mkdir "app"
 WORKDIR /app
+
 # Copy in the config files:
 COPY ./pyproject.toml /app/pyproject.toml
 COPY ./poetry.lock /app/poetry.lock
 COPY ./__version__.py /app/__version__.py
+COPY ./README.md /app/README.md
 
-# Install only dependencies:
-RUN poetry config virtualenvs.create false && poetry install --only main --no-root
+# Copy the package files
+COPY ./doorbeen /app/doorbeen
+
+# Install the package and dependencies:
+RUN poetry config virtualenvs.create false && poetry install --no-root
+RUN poetry install
+
 RUN export DOCKER_DEFAULT_PLATFORM=linux/amd64
-
-# Copy core
-COPY ./core /app/core/
-COPY ./api /app/api/
 
 EXPOSE 9001
 
@@ -41,4 +44,4 @@ ENTRYPOINT ["gunicorn", "-w", "4", \
             "--access-logformat", "'%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s \"%(f)s\" \"%(a)s\"'", \
             "--log-level", "debug", \
             "--logger-class", "gunicorn.glogging.Logger", \
-            "api.main:app"]
+            "doorbeen.api.main:app"]
