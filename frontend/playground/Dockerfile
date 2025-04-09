@@ -26,16 +26,11 @@ RUN yarn install
 # Copy the rest of the code
 COPY . .
 
-# Create .env file with all environment variables
-RUN touch .env && \
-    [ ! -z "$NODE_ENV" ] && echo "NODE_ENV=${NODE_ENV}" >> .env || true && \
-    [ ! -z "$API_SERVER_URL" ] && echo "API_SERVER_URL=${API_SERVER_URL}" >> .env || true && \
-    [ ! -z "$FORMKIT_PRO_LICENSE_KEY" ] && echo "FORMKIT_PRO_LICENSE_KEY=${FORMKIT_PRO_LICENSE_KEY}" >> .env || true && \
-    [ ! -z "$NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ] && echo "NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY}" >> .env || true && \
-    [ ! -z "$NUXT_CLERK_SECRET_KEY" ] && echo "NUXT_CLERK_SECRET_KEY=${NUXT_CLERK_SECRET_KEY}" >> .env || true && \
-    [ ! -z "$CLERK_DOMAIN" ] && echo "CLERK_DOMAIN=${CLERK_DOMAIN}" >> .env || true && \
-    [ ! -z "$ALLOWED_DOMAINS" ] && echo "ALLOWED_DOMAINS=${ALLOWED_DOMAINS}" >> .env || true && \
-    [ ! -z "$GTAG_ID" ] && echo "GTAG_ID=${GTAG_ID}" >> .env || true
+# Copy the local.env file and rename it to .env
+COPY ./local.env /app/.env
+
+# Load environment variables from .env file
+ENV $(cat .env | xargs)
 
 # Print .env file contents for debugging
 RUN echo "==== .env file contents ====" && cat .env

@@ -21,6 +21,12 @@ COPY ./README.md /app/README.md
 # Copy the package files
 COPY ./doorbeen /app/doorbeen
 
+# Copy the local.env file and rename it to .env
+COPY ./local.env /app/.env
+
+# Load environment variables from .env file
+ENV $(cat /app/.env | xargs)
+
 # Install the package and dependencies:
 RUN poetry config virtualenvs.create false && poetry install --no-root
 RUN poetry install
