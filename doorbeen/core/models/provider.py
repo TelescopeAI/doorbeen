@@ -44,7 +44,7 @@ default_config = ModelProviderConfig(
         "gpt-3.5-turbo": ModelInfo(
             name="gpt-3.5-turbo",
             provider="OpenAI",
-            max_tokens=4096,
+            max_tokens=16385,
             cost_per_1k_tokens=0.002,
             capabilities=["general", "sql", "analysis"]
         ),
@@ -55,19 +55,54 @@ default_config = ModelProviderConfig(
             cost_per_1k_tokens=0.06,
             capabilities=["general", "sql", "analysis", "complex_reasoning"]
         ),
+        "gpt-4-turbo": ModelInfo(
+            name="gpt-4-turbo",
+            provider="OpenAI",
+            max_tokens=128000,
+            cost_per_1k_tokens=0.03,
+            capabilities=["general", "sql", "analysis", "complex_reasoning", "vision"]
+        ),
         "gpt-4o": ModelInfo(
             name="gpt-4o",
             provider="OpenAI",
             max_tokens=128000,
             cost_per_1k_tokens=0.06,
-            capabilities=["general", "sql", "analysis", "complex_reasoning"]
+            capabilities=["general", "sql", "analysis", "complex_reasoning", "vision", "creative_writing"]
         ),
         "gpt-4o-mini": ModelInfo(
             name="gpt-4o-mini",
             provider="OpenAI",
-            max_tokens=8192,
+            max_tokens=128000,
             cost_per_1k_tokens=0.01,
-            capabilities=["general", "sql", "analysis"]
+            capabilities=["general", "sql", "analysis", "vision"]
+        ),
+        "gpt-4.5-preview": ModelInfo(
+            name="gpt-4.5-preview",
+            provider="OpenAI",
+            max_tokens=128000,
+            cost_per_1k_tokens=0.08,
+            capabilities=["general", "sql", "analysis", "complex_reasoning", "vision", "creative_writing"]
+        ),
+        "o1": ModelInfo(
+            name="o1",
+            provider="OpenAI",
+            max_tokens=200000,
+            cost_per_1k_tokens=0.15,
+            capabilities=["general", "sql", "analysis", "complex_reasoning", "vision", "enhanced_reasoning"]
+        ),
+        "o1-mini": ModelInfo(
+            name="o1-mini",
+            provider="OpenAI",
+            max_tokens=128000,
+            cost_per_1k_tokens=0.08,
+            capabilities=["general", "sql", "analysis", "complex_reasoning", "coding", "enhanced_reasoning"]
+        ),
+        "o3-mini": ModelInfo(
+            name="o3-mini",
+            provider="OpenAI",
+            max_tokens=200000,
+            cost_per_1k_tokens=0.15,
+            capabilities=["general", "sql", "analysis", "complex_reasoning", "enhanced_reasoning"]
         ),
         "claude-2": ModelInfo(
             name="claude-2",

@@ -65,13 +65,23 @@ Be sure to replace placeholder values with your actual credentials:
 
 Doorbeen can be used either as a Python package in your application or deployed as a standalone service using Docker (which includes a Playground UI). Here's how to use it as a package:
 
+### Python Usage
+
 ### Installation
 
 ```bash
 pip install doorbeen
 ```
 
-### Python Usage
+#### Prerequisites
+
+- **Database for Assistant Memory**: Set `ASSISTANT_MEMORY_LOCATION_URI` to a valid Postgres Database URI. It's recommended to use a separate database from your application database. Alternatively, you can use a separate schema in your existing Postgres DB.
+
+  You can spin up a Postgres DB using Docker by following [this guide](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/).
+
+- Doorbeen uses langchain's checkpointers for memory functionality. For more information, see the [LangGraph persistence documentation](https://langchain-ai.github.io/langgraph/concepts/persistence/#checkpointer-libraries).
+
+
 
 ```python
 import asyncio

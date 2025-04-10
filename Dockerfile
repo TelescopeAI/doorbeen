@@ -28,8 +28,7 @@ COPY ./local.env /app/.env
 ENV $(cat /app/.env | xargs)
 
 # Install the package and dependencies:
-RUN poetry config virtualenvs.create false && poetry install --no-root
-RUN poetry install
+RUN poetry config virtualenvs.create false && poetry install
 
 RUN export DOCKER_DEFAULT_PLATFORM=linux/amd64
 

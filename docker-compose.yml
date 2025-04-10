@@ -14,7 +14,7 @@ services:
       - db
     restart: unless-stopped
     networks:
-      - doorbeen
+      - telescope
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9001/"]
       interval: 30s
@@ -50,25 +50,23 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - doorbeen
+      - telescope
 
   db:
     image: postgres:15
     container_name: db
-    environment:
-      - POSTGRES_USER
-      - POSTGRES_PASSWORD
-      - POSTGRES_DB
+    env_file:
+      - ./local.env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     restart: unless-stopped
     networks:
-      - doorbeen
+      - telescope
 
 networks:
-  doorbeen:
+  telescope:
     driver: bridge
 
 volumes:

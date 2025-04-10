@@ -21,9 +21,24 @@ const models = reactive([
 ]);
 const model_versions = [
   {
-    name: 'gpt-4o-mini',
-    value: 'gpt-4o-mini',
-    expense: 'CHEAP'
+    name: 'o1',
+    value: 'o1',
+    expense: 'EXPENSIVE'
+  },
+  {
+    name: 'o1-mini',
+    value: 'o1-mini',
+    expense: 'EXPENSIVE'
+  },
+  {
+    name: 'o3-mini',
+    value: 'o3-mini',
+    expense: 'EXPENSIVE'
+  },
+  {
+    name: 'gpt-4.5-preview',
+    value: 'gpt-4.5-preview',
+    expense: 'EXPENSIVE'
   },
   {
     name: 'gpt-4o',
@@ -31,22 +46,31 @@ const model_versions = [
     expense: 'EXPENSIVE'
   },
   {
+    name: 'gpt-4o-mini',
+    value: 'gpt-4o-mini',
+    expense: 'MODERATE'
+  },
+  {
     name: 'gpt-4-turbo',
     value: 'gpt-4-turbo',
     expense: 'MODERATE'
-  }, {
+  }, 
+  {
     name: 'gpt-4-turbo-preview',
     value: 'gpt-4-turbo-preview',
     expense: 'MODERATE'
-  }, {
+  }, 
+  {
     name: 'gpt-4-0125-preview',
     value: 'gpt-4-0125-preview',
     expense: 'MODERATE'
-  }, {
+  }, 
+  {
     name: 'gpt-4',
     value: 'gpt-4',
-    expense: 'MODERATE'
-  }, {
+    expense: 'EXPENSIVE'
+  }, 
+  {
     name: 'gpt-3.5-turbo',
     value: 'gpt-3.5-turbo',
     expense: 'CHEAP'

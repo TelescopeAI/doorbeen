@@ -15,7 +15,7 @@ class InputFollowupNode(TSModel):
     async def __call__(self, state: SQLAssistantState, config: RunnableConfig):
         assert state.is_followup, "This node should only be called for follow-up inputs"
         summary = state.summary
-        summary_message = AIMessage(content=f"This is the summary of everything that has happened till now\n {summary}")
+        summary_message = SystemMessage(content=f"This is the summary of everything that has happened till now\n {summary}")
         messages = [summary_message]
 
         last_messages = summary_message
