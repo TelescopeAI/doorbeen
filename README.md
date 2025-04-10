@@ -35,12 +35,6 @@ Doorbeen is an intelligent SQL assistant that connects Large Language Models (LL
 Doorbeen uses Clerk for user authentication. You'll need to create a Clerk account and set up an application to obtain your API keys.
 For Clerk authentication setup, please refer to the [official documentation](https://clerk.com/docs/quickstarts/setup-clerk).
 
-### FormKit Pro Components
-Doorbeen uses FormKit Pro components (Toggle Button and Dropdown) in the frontend playground. A FormKit Pro license is only required for usage in production instances:
-1. Purchase a FormKit Pro license from [Formkit](https://formkit.com/).
-2. Add your license key to the environment variables
-For more information on FormKit Pro, visit the [FormKit Pro documentation](https://formkit.com/pro).
-
 
 ### Environment Setup
 The repository contains example environment files that you should use as templates:
@@ -169,7 +163,7 @@ To use `direnv`:
 
 ## API Documentation
 
-You can access the complete API documentation by navigating to the `/docs` route after starting the application. This interactive documentation provides details on all available endpoints, request parameters, and response formats.
+You can access the complete API documentation by navigating to the [`/api/v1/docs`](https://services.doorbeen.dev/api/v1/docs) route after starting the application. This interactive documentation provides details on all available endpoints, request parameters, and response formats.
 
 ## Docker Setup
 
