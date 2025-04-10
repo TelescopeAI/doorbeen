@@ -1,0 +1,74 @@
+name: Build and Release Python Package
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - build
+
+jobs:
+  build-and-release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.5.1
+      
+      - name: Extract version
+        id: version
+        run: echo "version=$(poetry version -s)" >> $GITHUB_OUTPUT
+      
+      - name: Build package
+        run: poetry build
+      
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          release_name: v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+      
+      - name: Upload to TestPyPI
+        if: ${{ vars.ENABLE_PRODUCTION_RELEASE != 'true' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+          skip_existing: true
+      
+      - name: Upload to PyPI
+        if: ${{ vars.ENABLE_PRODUCTION_RELEASE == 'true' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip_existing: true
+      
+      - name: Reset production release flag
+        if: ${{ vars.ENABLE_PRODUCTION_RELEASE == 'true' }}
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.ADMIN_TOKEN }}
+          script: |
+            await github.rest.actions.setRepoVariable({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'ENABLE_PRODUCTION_RELEASE',
+              value: 'false'
+            });
