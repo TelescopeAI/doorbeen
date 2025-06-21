@@ -7,4 +7,5 @@ class FinalPresentation(TSModel):
     ready_to_present: bool
     interpretation_correct: bool
     message: str
+    next_questions: Optional[List[str]] = None
     results: Optional[List[dict]] = None

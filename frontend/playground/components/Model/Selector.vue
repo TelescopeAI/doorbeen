@@ -1,6 +1,7 @@
 <script setup lang="ts">
 
 import { useStorage } from "@vueuse/core";
+import { toast } from 'vue-sonner'
 
 const props = defineProps({
   variant: {
@@ -21,18 +22,53 @@ const models = reactive([
 ]);
 const model_versions = [
   {
-    name: 'o1',
-    value: 'o1',
+    name: 'o4',
+    value: 'o4',
     expense: 'EXPENSIVE'
   },
   {
-    name: 'o1-mini',
-    value: 'o1-mini',
+    name: 'o4-mini',
+    value: 'o4-mini',
+    expense: 'MODERATE'
+  },
+  {
+    name: 'o3',
+    value: 'o3',
+    expense: 'MODERATE'
+  },
+  {
+    name: 'o3-pro',
+    value: 'o3-pro',
     expense: 'EXPENSIVE'
   },
   {
     name: 'o3-mini',
     value: 'o3-mini',
+    expense: 'EXPENSIVE'
+  },
+  {
+    name: 'o1',
+    value: 'o1',
+    expense: 'EXPENSIVE'
+  },
+  {
+    name: 'o1-pro',
+    value: 'o1-pro',
+    expense: 'EXPENSIVE'
+  },
+  {
+    name: 'gpt-4.1-mini',
+    value: 'gpt-4.1-mini',
+    expense: 'MODERATE'
+  },
+  {
+    name: 'gpt-4.1-nano',
+    value: 'gpt-4.1-nano',
+    expense: 'CHEAP'
+  },
+  {
+    name: 'o1-mini',
+    value: 'o1-mini',
     expense: 'EXPENSIVE'
   },
   {
@@ -76,7 +112,7 @@ const model_versions = [
     expense: 'CHEAP'
   }
 ]
-const emit = defineEmits(['modelConfigUpdated', 'modelConfigAvailableInStorage'])
+const emit = defineEmits(['modelConfigUpdated', 'modelConfigAvailableInStorage', 'configSaved'])
 
 const stored_model_config = useStorage('model-config', {});
 const model_config = reactive(stored_model_config.value)
@@ -102,6 +138,17 @@ const db_form_submit_handler = async (formData: Object) => {
   emit('modelConfigUpdated', formData)
   stored_model_config.value = formData
   console.log("Model Form Submitted ", formData)
+  
+  // Get the model name for display
+  const modelName = formData.name || 'AI model'
+  
+  // Show success toast with specific model info
+  toast.success('Model Configuration Updated', {
+    description: `Your configuration has been updated to use ${modelName}.`,
+  })
+  
+  // Emit configSaved event to trigger dialog close
+  emit('configSaved')
 }
 
 const handleIconClick = (node, e) => {

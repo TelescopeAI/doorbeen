@@ -2,16 +2,18 @@ import logging
 import os
 import time
 import sys
+import traceback
 
 import uvicorn
 from Secweb import SecWeb
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
+from fastapi_mcp import FastApiMCP
 # from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -187,6 +189,38 @@ async def validation_exception_handler(request, exc):
     return PlainTextResponse(str(exc), status_code=400)
 
 
+@app.exception_handler(500)
+async def internal_server_error_handler(request: Request, exc: Exception):
+    """Handle all unhandled exceptions and log them with full traceback"""
+    error_id = str(time.time())
+    error_msg = f"Internal Server Error [{error_id}]: {str(exc)}"
+    
+    # Log the full traceback
+    logging.error(f"UNHANDLED EXCEPTION [{error_id}]:")
+    logging.error(f"Request URL: {request.url}")
+    logging.error(f"Request method: {request.method}")
+    logging.error(f"Exception type: {type(exc).__name__}")
+    logging.error(f"Exception message: {str(exc)}")
+    logging.error(f"Full traceback:\n{''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))}")
+    
+    # Also print to stdout for immediate visibility
+    print(f"UNHANDLED EXCEPTION [{error_id}]:")
+    print(f"Request URL: {request.url}")
+    print(f"Request method: {request.method}")
+    print(f"Exception type: {type(exc).__name__}")
+    print(f"Exception message: {str(exc)}")
+    print(f"Full traceback:\n{''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))}")
+    
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal Server Error",
+            "message": f"An unexpected error occurred. Error ID: {error_id}",
+            "details": str(exc) if ExecutionEnv.is_local() else "Contact support with the Error ID"
+        }
+    )
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ORIGINS,
@@ -196,15 +230,21 @@ app.add_middleware(
                    'Access-Control-Allow-Origin', "Set-Cookie"]
 )
 
-reload_dirs = [os.path.join(ROOT_DIR, "api"), os.path.join(ROOT_DIR, "core")]
+# Use absolute paths to be more specific and avoid .venv scanning
+reload_dirs = [
+    os.path.abspath(os.path.join(ROOT_DIR, "api")), 
+    os.path.abspath(os.path.join(ROOT_DIR, "core"))
+]
 
 
 def start_api_server():
     if ExecutionEnv.https_enabled():
-        uvicorn.run("doorbeen.api.main:app", host=SERVER_HOST, port=SERVER_PORT, reload=True, reload_dirs=reload_dirs,
+        uvicorn.run("doorbeen.api.main:app", host=SERVER_HOST, port=SERVER_PORT, reload=True, 
+                    reload_dirs=reload_dirs,
                     ssl_keyfile=SSL_KEYFILE, ssl_certfile=SSL_CERTIFICATE, server_header=False)
     else:
-        uvicorn.run("doorbeen.api.main:app", host=SERVER_HOST, port=SERVER_PORT, reload=True, reload_dirs=reload_dirs,
+        uvicorn.run("doorbeen.api.main:app", host=SERVER_HOST, port=SERVER_PORT, reload=True, 
+                    reload_dirs=reload_dirs,
                     server_header=False)
 
 

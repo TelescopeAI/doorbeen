@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class EventTypes(Enum):
+class EventTypes(str, Enum):
     TOOL_INVOKE = "agent:tool:invoke"
     STREAM_OUTPUT = "agent:stream:output"
     MESSAGE = "agent:message"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import Rating from 'primevue/rating';
+import { Star } from 'lucide-vue-next';
 
 const props = defineProps({
   node: {
@@ -31,6 +31,11 @@ const qaData = computed(() => {
 });
 
 const aspects = computed(() => Object.keys(qaData.value).filter(key => key !== 'should_enrich'));
+
+// Helper function to generate star array for rating
+const getStarArray = (score: number) => {
+  return Array.from({ length: 5 }, (_, index) => index < score);
+};
 </script>
 
 <template>
@@ -39,11 +44,15 @@ const aspects = computed(() => Object.keys(qaData.value).filter(key => key !== '
       <div v-for="aspect in aspects" :key="aspect" class="mb-4">
         <h3 class="text-lg font-semibold mb-2">{{ qaData[aspect].name }}</h3>
         <div class="flex items-center mb-2">
-          <Rating
-            v-model="qaData[aspect].score"
-            :cancel="false"
-            :readonly="true"
+          <div class="flex items-center gap-1">
+            <Star
+              v-for="(filled, index) in getStarArray(qaData[aspect].score)"
+              :key="index"
+              :class="filled ? 'text-yellow-400 fill-current' : 'text-gray-300'"
+              class="w-5 h-5"
           />
+          </div>
+          <span class="ml-2 text-sm text-gray-600">{{ qaData[aspect].score }}/5</span>
         </div>
         <p class="text-sm text-gray-700">{{ qaData[aspect].reason }}</p>
       </div>

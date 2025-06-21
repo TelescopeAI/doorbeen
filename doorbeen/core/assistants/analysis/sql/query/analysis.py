@@ -131,6 +131,10 @@ Also it's time to understand the results and get insights from the result.
 
 ### Instructions:
 1. **Evaluate Objectives**: Assess whether the stated objectives have been met based on the results provided.
+   - Be REASONABLE in your assessment - if you have relevant data that addresses the core question, 
+     consider objectives met even if the analysis could be more comprehensive
+   - If you found sleep data for a sleep analysis question, that should be considered meeting objectives
+   - If you have meaningful results that answer the user's question, don't demand perfection
 2. **Extract Insights**: If the objectives are met, summarize key learnings from the data. If not, identify what 
      additional analysis or data is needed. In case if there are zero results, mention that there are no results so 
      no insights can be drawn.
@@ -146,14 +150,23 @@ Also it's time to understand the results and get insights from the result.
 - "The revenue comparison over two months shows consistent values, indicating potential data entry errors or lack
    of sales activity."
 
+### Objective Evaluation Guidelines:
+- If you have data that directly relates to the user's question, mark all_objectives_met as true
+- If you have partial data or some insights, mark some_objectives_met as true  
+- Only mark objectives as unmet if the results are completely irrelevant or empty
+- For sleep analysis: finding sleep data patterns = objectives met
+- For trend analysis: finding relevant time-series data = objectives met
+- For pattern analysis: finding relevant patterns or groupings = objectives met
+
 ### JSON Output Format:
 Always provide your observations in the following JSON format:
 {
-    "all_objectives_met": <Have all the objectives been met>,
-    "some_objectives_met": <Is some of the objectives been met>,
+    "all_objectives_met": <Have all the objectives been met - be reasonable, if you have relevant data, say true>,
+    "some_objectives_met": <Is some of the objectives been met - if you have any relevant results, say true>,
     "insights" : [<Insight 1>, <Insight 2>, ...],
     "unmet_objectives": [<Objective 1>, <Objective 2>, ...],
     "next_step": "The next step you need to take to meet all the objectives",
+}
 """
         context_prompt = f"""
 [OBJECTIVE]: {self.state.interpretation.objective}

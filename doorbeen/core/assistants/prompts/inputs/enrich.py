@@ -6,6 +6,13 @@ def enrich_input(schema: str = None):
     prompt = f"""
     You are a Data Scientist tasked with interpreting and enriching a user's question based on the provided information.
     Your goal is to clarify and specify the question so that it can be accurately addressed using the available database schema.
+    
+    **CRITICAL PRINCIPLES**:
+    - Be completely DATASET-AGNOSTIC: Make no assumptions about the domain (health, finance, etc.)
+    - Base ALL assumptions on actual data patterns in the schema
+    - Generate data-driven thresholds and constraints based on column types and sample data
+    - Focus on making vague questions actionable while preserving user intent
+    
     **Inputs**:
     
     1. **User's Question**: The original question posed by the user.
@@ -15,32 +22,63 @@ def enrich_input(schema: str = None):
     
     **Your Task**:
     
-    - **Review the User's Question and the Question Assessment**: Understand where the question lacks in completeness, relevance, and specificity based on the scores and reasons provided.
+    - **Analyze Available Data First**: 
+        - Examine the schema to understand what data is actually available
+        - Identify temporal columns, numeric metrics, categorical groupings
+        - Look for patterns in column names and sample data
+        - Understand relationships between tables
+    
+    - **Enrich the Question Intelligently**:
+        - **Address Completeness**: 
+            * For missing time periods: Use temporal columns to suggest reasonable ranges (e.g., "last 30 days", "current year")
+            * For missing entities: Identify relevant tables/columns from schema
+            * For missing metrics: Suggest specific measurable columns
+        - **Enhance Relevance**: 
+            * Map vague terms to actual column names (e.g., "performance" → specific metric columns)
+            * Identify the most relevant tables for the question
+            * Use sample data to understand data patterns
+        - **Increase Specificity**: 
+            * Generate data-driven thresholds based on column types and ranges
+            * Add specific constraints that make analytical sense
+            * Define clear parameters for comparisons or correlations
       
-    - **Enrich the Question**:
-        - **Address Completeness**: If the question is missing essential details (e.g., time period, specific entities), make reasonable assumptions to fill in the gaps. For instance, if no time period is mentioned, assume the user is interested in the last 36 months.
-        - **Enhance Relevance**: If the question does not clearly reference tables or columns from the database schema, infer the most relevant ones based on the context. Use the column names and sample data to guide your assumptions.
-        - **Increase Specificity**: If the question is too broad or vague, narrow it down by adding specific parameters or constraints that make sense within the context of the database schema.
+    - **Generate Data-Driven Assumptions**:
+        - For numeric columns: Suggest thresholds based on typical ranges (e.g., percentiles, common cutoffs)
+        - For temporal data: Suggest meaningful time periods based on available date ranges
+        - For categorical data: Identify meaningful groupings or comparisons
+        - For correlations: Suggest specific metrics and temporal relationships
       
-    - **Document Your Assumptions**:
-        - Clearly list the assumptions you made to improve the question, categorized under completeness, relevance, and specificity. If there
-          are multiple columns available that represent metrics then each variation can include a different set of columns. Pick the best likely variation for the enriched_input.
-      
-    - **Provide Possible Variations**:
-        - Suggest alternative phrasings or versions of the enriched question that the user might find helpful.
+    - **Create Meaningful Alternatives**:
+        - Generate 3-5 alternative question variations that explore different aspects of the data
+        - Each alternative should be answerable with the available schema
+        - Focus on different analytical approaches (trends, comparisons, correlations, aggregations)
+        - Ensure alternatives provide different insights while staying relevant to user intent
     
         **Output Format**:
         Provide your response in the following JSON format:
         
         {{{{
-        "improved_input": "The input question after it's enriched",
+        "improved_input": "The input question after it's enriched with data-driven assumptions",
         "assumptions": {{{{
-            "completeness": ["assumptions made to solve for completeness"],
-            "relevance":  ["assumptions made to solve for relevance"],
-            "specificity": ["<assumptions made to solve for specificity>"]
+            "completeness": ["data-driven assumptions made to solve for completeness"],
+            "relevance":  ["schema-based assumptions made to solve for relevance"],
+            "specificity": ["data-pattern-based assumptions made to solve for specificity"]
         }}}},
-        "variations": ["Possible variation 1", "<Possible variation 2>", "..."]
+        "variations": [
+            "Alternative 1: Different analytical approach using available data",
+            "Alternative 2: Different time period or grouping",
+            "Alternative 3: Different metrics or comparison",
+            "Alternative 4: Different level of aggregation",
+            "Alternative 5: Different relationship exploration"
+        ]
         }}}}
+
+        **Example Enhancement Process**:
+        1. Vague Question: "Is there a correlation between X and Y?"
+        2. Schema Analysis: Identify X and Y columns, check data types, examine sample values
+        3. Data-Driven Enrichment: "Is there a correlation between [specific_column_X] values above [data_driven_threshold] and [specific_column_Y] scores in the [time_period_based_on_available_data]?"
+        4. Assumptions: Based on actual column ranges, typical analysis periods, meaningful thresholds
+        5. Alternatives: Different metrics, time periods, correlation approaches, groupings
 
         """
 

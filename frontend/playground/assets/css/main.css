@@ -1,3 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* Primary and Surface Palettes */
 :root {
@@ -95,4 +98,324 @@
         --primary-highlight-hover-opacity: 0.2;
 
     }
+}
+
+
+
+
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+        --sidebar-background: 0 0% 98%;
+        --sidebar-foreground: 240 5.3% 26.1%;
+        --sidebar-primary: 240 5.9% 10%;
+        --sidebar-primary-foreground: 0 0% 98%;
+        --sidebar-accent: 240 4.8% 95.9%;
+        --sidebar-accent-foreground: 240 5.9% 10%;
+        --sidebar-border: 220 13% 91%;
+        --sidebar-ring: 217.2 91.2% 59.8%;
+    }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+        --sidebar-background: 240 5.9% 10%;
+        --sidebar-foreground: 240 4.8% 95.9%;
+        --sidebar-primary: 224.3 76.3% 48%;
+        --sidebar-primary-foreground: 0 0% 100%;
+        --sidebar-accent: 240 3.7% 15.9%;
+        --sidebar-accent-foreground: 240 4.8% 95.9%;
+        --sidebar-border: 240 3.7% 15.9%;
+        --sidebar-ring: 217.2 91.2% 59.8%;
+    }
+}
+
+
+
+
+
+@layer base {
+  * {
+    @apply border-border;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+}
+
+/* High Density UI System */
+@layer utilities {
+  /* Compact Text Density */
+  .text-density-high {
+    @apply leading-[1.4] tracking-tight;
+  }
+  
+  .text-density-high p {
+    @apply mb-2 leading-[1.45];
+  }
+  
+  .text-density-high h1, 
+  .text-density-high h2, 
+  .text-density-high h3, 
+  .text-density-high h4 {
+    @apply mb-1 mt-2 leading-tight;
+  }
+  
+  /* Compact Card Overrides */
+  .card-dense .card-content,
+  .card-dense [data-card-content] {
+    @apply p-3 pt-0;
+  }
+  
+  .card-dense .card-header,
+  .card-dense [data-card-header] {
+    @apply p-3 pb-1;
+  }
+  
+  /* Compact Spacing System */
+  .gap-dense {
+    @apply gap-2;
+  }
+  
+  .gap-y-dense {
+    @apply gap-y-2;
+  }
+  
+  .gap-x-dense {
+    @apply gap-x-2;
+  }
+  
+  /* Ultra Compact for Conversation UI */
+  .conversation-dense {
+    @apply gap-y-3;
+  }
+  
+  .conversation-dense .card-content,
+  .conversation-dense [data-card-content] {
+    @apply p-2;
+  }
+  
+  /* Compact Form Elements */
+  .form-dense input,
+  .form-dense textarea,
+  .form-dense .form-control {
+    @apply py-1.5 px-2 text-sm leading-tight;
+  }
+  
+  /* Compact Buttons */
+  .btn-dense {
+    @apply py-1 px-2 text-sm;
+  }
+  
+  /* Accordion/Expandable Content Density */
+  .accordion-dense .accordion-content {
+    @apply py-2;
+  }
+  
+  .accordion-dense .accordion-trigger {
+    @apply py-2;
+  }
+  
+  /* List/Item Density */
+  .list-dense li {
+    @apply py-0.5;
+  }
+  
+  .list-dense .list-item {
+    @apply py-1 px-2;
+  }
+  
+  /* Page Layout Density */
+  .page-dense {
+    @apply p-2 md:p-4 gap-y-4;
+  }
+  
+  .section-dense {
+    @apply gap-y-2;
+  }
+}
+
+/* Component-specific overrides for maximum density */
+@layer components {
+  /* Override ShadCN Card defaults for dense mode */
+  .card-ultra-dense {
+    @apply rounded border bg-card text-card-foreground shadow-sm;
+  }
+  
+  .card-ultra-dense .card-content {
+    @apply p-2;
+  }
+  
+  .card-ultra-dense .card-header {
+    @apply p-2 pb-1;
+  }
+  
+  /* Dense Typography */
+  .prose-dense {
+    @apply text-sm leading-relaxed;
+  }
+  
+  .prose-dense p {
+    @apply mb-2;
+  }
+  
+  .prose-dense ul, .prose-dense ol {
+    @apply my-2;
+  }
+  
+  .prose-dense li {
+    @apply my-0;
+  }
+  
+  /* Dense Code Blocks */
+  .prose-dense pre {
+    @apply my-2 p-2 text-xs;
+  }
+  
+  .prose-dense code {
+    @apply text-xs px-1 py-0;
+  }
+  
+  /* Node Component Specific Density */
+  .prose-dense h3 {
+    @apply text-base font-semibold mb-1 mt-2;
+  }
+  
+  .prose-dense h4 {
+    @apply text-sm font-medium mb-1 mt-1;
+  }
+  
+  /* Conversation-specific spacing overrides */
+  .conversation-dense .bg-white {
+    @apply mb-2;
+  }
+  
+  .conversation-dense .shadow {
+    @apply p-2;
+  }
+  
+  /* Badge and Tag density */
+  .prose-dense .badge,
+  .prose-dense [class*="badge"] {
+    @apply text-xs px-2 py-0.5;
+  }
+  
+  /* List density */
+  .prose-dense .list-disc {
+    @apply space-y-0;
+  }
+  
+  .prose-dense .list-decimal {
+    @apply space-y-0;
+  }
+  
+  .prose-dense li {
+    @apply mb-0;
+  }
+  
+  /* Grid and flex density */
+  .conversation-dense .grid {
+    @apply gap-2;
+  }
+  
+  .conversation-dense .flex {
+    @apply gap-2;
+  }
+  
+  /* Space-y overrides for dense layout */
+  .conversation-dense .space-y-4 > * + * {
+    @apply mt-2;
+  }
+  
+  .conversation-dense .space-y-6 > * + * {
+    @apply mt-3;
+  }
+  
+  /* Tab panel density */
+  .conversation-dense .p-tabview-panel {
+    @apply p-2;
+  }
+  
+  /* Alert density */
+  .prose-dense .alert,
+  .prose-dense [class*="alert"] {
+    @apply py-2 px-3 my-1;
+  }
+  
+  /* FormKit Dialog Overrides - Ensure forms in dialogs work properly */
+  [role="dialog"] .formkit-form,
+  [data-reka-dialog-content] .formkit-form {
+    line-height: 1.5 !important;
+  }
+  
+  [role="dialog"] .formkit-outer,
+  [data-reka-dialog-content] .formkit-outer {
+    margin-bottom: 1rem !important;
+  }
+  
+  [role="dialog"] .formkit-wrapper,
+  [data-reka-dialog-content] .formkit-wrapper {
+    gap: 0.5rem !important;
+  }
+  
+  [role="dialog"] .formkit-input,
+  [data-reka-dialog-content] .formkit-input {
+    padding: 0.5rem 0.75rem !important;
+    line-height: 1.5 !important;
+  }
+  
+  [role="dialog"] .formkit-label,
+  [data-reka-dialog-content] .formkit-label {
+    margin-bottom: 0.5rem !important;
+    font-weight: 500 !important;
+  }
+  
+  [role="dialog"] .formkit-help,
+  [data-reka-dialog-content] .formkit-help {
+    margin-top: 0.25rem !important;
+    font-size: 0.875rem !important;
+  }
+  
+  /* Toggle buttons specific overrides */
+  [role="dialog"] .formkit-options,
+  [data-reka-dialog-content] .formkit-options {
+    gap: 0.5rem !important;
+  }
 }
