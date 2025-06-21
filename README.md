@@ -142,7 +142,7 @@ if __name__ == "__main__":
 For deploying as a standalone service with the Playground UI, refer to the Docker deployment instructions below.
 
 ### Reasoning Flow
-![Workflow Diagram](./doorbeen/api/workflow.png)
+![Workflow Diagram](./doorbeen/workflow.png)
 
 
 ## Development
