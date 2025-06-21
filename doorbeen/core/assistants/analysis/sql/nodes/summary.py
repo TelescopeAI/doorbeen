@@ -26,6 +26,10 @@ class SummarizeConversationNode(TSModel):
         summary += f"This is how we graded the question: {grade_summary}\n"
 
         print(summary)
+        # Use schema from state instead of reloading
+        selected_tables = state.selected_tables or connection.get_table_names(schema_name=connection.credentials.database)
+        table_schemas = state.table_schemas or connection.get_schema()
+        
         output = {
             "messages": [
                 AIMessage(
@@ -34,8 +38,8 @@ class SummarizeConversationNode(TSModel):
             ],
             "input": self.qn,
             "is_followup": state.is_followup,
-            "selected_tables": connection.get_table_names(schema_name=connection.credentials.database),
-            "table_schemas": connection.get_schema()
+            "selected_tables": selected_tables,
+            "table_schemas": table_schemas
         }
 
         return output

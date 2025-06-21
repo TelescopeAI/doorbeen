@@ -97,12 +97,54 @@ default_config = ModelProviderConfig(
             cost_per_1k_tokens=0.08,
             capabilities=["general", "sql", "analysis", "complex_reasoning", "coding", "enhanced_reasoning"]
         ),
-        "o3-mini": ModelInfo(
-            name="o3-mini",
+        "o3": ModelInfo(
+            name="o3",
             provider="OpenAI",
             max_tokens=200000,
             cost_per_1k_tokens=0.15,
             capabilities=["general", "sql", "analysis", "complex_reasoning", "enhanced_reasoning"]
+        ),
+        "o3-pro": ModelInfo(
+            name="o3-pro",
+            provider="OpenAI",
+            max_tokens=200000,
+            cost_per_1k_tokens=0.20,
+            capabilities=["general", "sql", "analysis", "complex_reasoning", "enhanced_reasoning"]
+        ),
+        "o3-mini": ModelInfo(
+            name="o3-mini",
+            provider="OpenAI",
+            max_tokens=128000,
+            cost_per_1k_tokens=0.08,
+            capabilities=["general", "sql", "analysis", "complex_reasoning", "enhanced_reasoning"]
+        ),
+        "o4": ModelInfo(
+            name="o4",
+            provider="OpenAI",
+            max_tokens=200000,
+            cost_per_1k_tokens=0.20,
+            capabilities=["general", "sql", "analysis", "complex_reasoning", "enhanced_reasoning"]
+        ),
+        "o4-mini": ModelInfo(
+            name="o4-mini",
+            provider="OpenAI",
+            max_tokens=128000,
+            cost_per_1k_tokens=0.10,
+            capabilities=["general", "sql", "analysis", "complex_reasoning", "enhanced_reasoning"]
+        ),
+        "gpt-4.1-mini": ModelInfo(
+            name="gpt-4.1-mini",
+            provider="OpenAI",
+            max_tokens=128000,
+            cost_per_1k_tokens=0.03,
+            capabilities=["general", "sql", "analysis", "complex_reasoning", "coding"]
+        ),
+        "gpt-4.1-nano": ModelInfo(
+            name="gpt-4.1-nano",
+            provider="OpenAI",
+            max_tokens=128000,
+            cost_per_1k_tokens=0.015,
+            capabilities=["general", "sql", "analysis", "coding"]
         ),
         "claude-2": ModelInfo(
             name="claude-2",

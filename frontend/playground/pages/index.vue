@@ -1,20 +1,17 @@
 <script setup lang="ts">
 import { useToast } from "primevue/usetoast";
-import { sql_agent_request } from "~/composables/network";
 import type { MODEL_CONFIG } from "~/types/models";
 import { type ConversationMessage, ConversationState } from "~/types/conversations";
-import Navbar from "~/components/Navbar.vue";
 import { useGenerateUUID4 } from "~/composables/uuid";
 import { StreamResponse } from "~/types/streaming";
-import type { NodeExecutionOutput } from "~/types/streaming";
+import type { NodeExecutionOutput, NodeExecutionData } from "~/types/streaming";
 
 import { ref, reactive, watch } from 'vue'
 import { parseDBConfig } from "~/composables/parsing";
 import { getAPIServerURL } from "~/composables/server";
-import Panel from 'primevue/panel';
 import Card from 'primevue/card';
 import {SSEService} from "~/core/streaming/sse";
-import { useAuth, useSession } from '@clerk/vue'
+import { useSession } from '@clerk/vue'
 
 const toast = useToast();
 const connection = reactive({
@@ -24,7 +21,39 @@ const connection = reactive({
 let model_params: MODEL_CONFIG = reactive({
   name: "", api_key: ""
 });
-const sseService = ref(null);
+const sseService = ref<SSEService | null>(null);
+
+// Initialize configurations from localStorage
+onMounted(() => {
+  // Load database configuration
+  const storedDbConfig = localStorage.getItem('db-config')
+  if (storedDbConfig) {
+    try {
+      const dbConfig = JSON.parse(storedDbConfig)
+      if (dbConfig && Object.keys(dbConfig).length > 0) {
+        conn_details = dbConfig  // Don't wrap in reactive here since it's already reactive
+        console.log('Loaded database config:', dbConfig)
+      }
+    } catch (error) {
+      console.error('Error parsing stored database config:', error)
+    }
+  }
+
+  // Load model configuration
+  const storedModelConfig = localStorage.getItem('model-config')
+  if (storedModelConfig) {
+    try {
+      const modelConfig = JSON.parse(storedModelConfig)
+      if (modelConfig && Object.keys(modelConfig).length > 0) {
+        model_params.name = modelConfig.name || ''
+        model_params.api_key = modelConfig.api_key || ''
+        console.log('Loaded model config:', modelConfig)
+      }
+    } catch (error) {
+      console.error('Error parsing stored model config:', error)
+    }
+  }
+})
 
 const model_updated = (model_config: MODEL_CONFIG) => {
   model_params = model_config;
@@ -43,6 +72,7 @@ let last_question = ref('');
 const streamMessages = ref([])
 
 const update_question = (new_question: string) => {
+  console.log('📝 Text input updated:', new_question);
   current_question.value = new_question;
 };
 
@@ -84,8 +114,52 @@ const resetStreamState = () => {
   cumulativeStreamResponse.value = new StreamResponse();
 };
 
+// Enhanced node-specific data processing
+const processNodeSpecificData = (nodeOutput: NodeExecutionOutput) => {
+  const nodeName = nodeOutput.name;
+  const data = nodeOutput.data;
+  
+  // Handle stream termination
+  if (nodeName === 'stream_termination' || nodeName === 'conversation_complete') {
+    try {
+      console.log('Stream terminated:', data);
+      
+      // If current message exists, mark it as complete
+      if (current_message.value) {
+        current_message.value.state = ConversationState.COMPLETED;
+        const currentAttempt = current_message.value.attempts?.[current_message.value.attempts.length - 1];
+        if (currentAttempt) {
+          currentAttempt.result = ConversationState.COMPLETED;
+        }
+        update_message_stream(current_message.value);
+      }
+      
+      isAgentThinking.value = false;
+      current_question.value = ''; // Clear the question input
+      return;
+    } catch (error) {
+      console.error('Error processing termination data:', error);
+    }
+  }
+  
+  // Handle both string and structured data
+  let structuredData: NodeExecutionData | null = null;
+  if (typeof data === 'string') {
+    try {
+      structuredData = JSON.parse(data);
+    } catch {
+      // If it's not JSON, treat as simple string content
+      structuredData = { content: data };
+    }
+  } else {
+    structuredData = data as NodeExecutionData;
+  }
 
-// Watch for new stream messages
+  // Basic node processing - can be enhanced as needed
+  console.log('Processing node:', nodeName, 'with data:', structuredData);
+};
+
+// Watch for new stream messages with enhanced processing
 watch(() => streamMessages, (newMessages) => {
   const newVal = newMessages.value;
   if (newVal.length > 0) {
@@ -111,6 +185,9 @@ watch(() => streamMessages, (newMessages) => {
         }
         cumulativeStreamResponse.value.nodeOutputs.push(nodeOutput);
 
+        // Enhanced processing based on node type
+        processNodeSpecificData(nodeOutput);
+
         // Update the current message's stream
         if (current_message.value) {
           current_message.value.stream = cumulativeStreamResponse.value;
@@ -127,15 +204,30 @@ watch(() => streamMessages, (newMessages) => {
   }
 }, { deep: true });
 
-
-
-
-
 async function ask_question(retry: boolean = false) {
   retry = retry === true;
   let qn = retry ? last_question.value : current_question.value;
   if (!retry) last_question.value = qn;
+  
   console.log("Asking Question: ", qn);
+
+  // Check if we have required configurations
+  console.log('Current configurations:', { conn_details, model_params });
+  
+  if (!conn_details) {
+    toast.add({ severity: 'error', summary: 'Configuration Missing', detail: 'Please configure your database connection first', life: 3000 });
+    return;
+  }
+  
+  if (!model_params || !model_params.name) {
+    toast.add({ severity: 'error', summary: 'Configuration Missing', detail: 'Please configure your AI model first', life: 3000 });
+    return;
+  }
+  
+  if (!qn || qn.trim() === '') {
+    toast.add({ severity: 'error', summary: 'Question Required', detail: 'Please enter a question first', life: 3000 });
+    return;
+  }
 
   // Reset the stream state before starting a new question or retry
   resetStreamState();
@@ -167,122 +259,86 @@ async function ask_question(retry: boolean = false) {
   }
 
   current_message.value = message;
-  const { ask, ask_sample_db } = await sql_agent_request(sample_mode.value);
   message.state = ConversationState.PROCESSING;
-  message.attempts[message.attempts.length - 1].result = ConversationState.PROCESSING;
+  if (message.attempts && message.attempts.length > 0) {
+    message.attempts[message.attempts.length - 1].result = ConversationState.PROCESSING;
+  }
   await update_message_stream(message);
   isAgentThinking.value = true;
-  // const { getToken } = useAuth()
-  console.log("Session Token: ", await window.Clerk.session.getToken())
-  const user_auth_token = await window.Clerk.session.getToken()
 
-  sseService.value = new SSEService( `${getAPIServerURL()}/api/v1/assistants`, user_auth_token, {
-    body: {
+  try {
+    console.log("🔐 Getting auth token...");
+    const user_auth_token = await window.Clerk?.session?.getToken();
+    
+    if (!user_auth_token) {
+      throw new Error('Authentication token not available');
+    }
+
+    console.log("✅ Auth token obtained");
+
+    // Clean up any existing SSE connection
+    if (sseService.value) {
+      console.log("🧹 Cleaning up existing SSE connection");
+      sseService.value.disconnect();
+    }
+
+    const requestPayload = {
       question: qn,
       model: model_params,
       connection: parseDBConfig(conn_details),
       stream: true
+    };
+
+    console.log('🚀 Setting up SSE connection with payload:', requestPayload);
+
+    sseService.value = new SSEService(`${getAPIServerURL()}/api/v1/assistants`, user_auth_token, {
+      body: requestPayload
+    });
+
+    sseService.value.onMessage((sse_event) => {
+      console.log('📨 Received SSE data:', sse_event);
+      streamMessages.value.push(sse_event);
+    });
+
+    await sseService.value.connect();
+    console.log('✅ SSE Connection established successfully');
+
+  } catch (error: any) {
+    console.error('❌ Error setting up SSE connection:', error);
+    const currentAttempt = message.attempts?.[message.attempts.length - 1];
+    if (currentAttempt) {
+      message.state = ConversationState.ERROR;
+      currentAttempt.result = ConversationState.ERROR;
+      currentAttempt.response = error?.message || 'Failed to establish connection';
+      message.error = error?.message || 'Failed to establish connection';
+      await update_message_stream(message);
     }
-  });
-
-  sseService.value.onMessage((sse_event) => {
-    const data = sse_event
-    console.log('Received SSE data:', sse_event);
-    streamMessages.value.push(data)
-  });
-
-  await sseService.value.connect();
-
-
-  // Send message using the new streaming service
-  // sendMessage(JSON.stringify({
-  //   question: qn,
-  //   model: model_params,
-  //   connection: parseDBConfig(conn_details),
-  //   stream: true
-  // }));
-
-
-  let agent_message, error;
-
-  // Non-streaming implementation
-  if (!sample_mode.value) {
-    ({ agent_message, error } = await ask(qn, conn_details, model_params));
-  } else {
-    ({ agent_message, error } = await ask_sample_db(qn));
+    toast.add({ severity: 'error', summary: 'Connection Error', detail: error?.message || 'Failed to connect to server', life: 3000 });
+    isAgentThinking.value = false;
   }
-
-  const currentAttempt = message.attempts[message.attempts.length - 1];
-
-  if (error?.value) {
-    message.state = ConversationState.ERROR;
-    currentAttempt.result = ConversationState.ERROR;
-    currentAttempt.response = error.value;
-    message.error = error.value;
-    console.log("Updating message with error state:", message);
-    await update_message_stream(message);
-    toast.add({ severity: 'error', summary: 'Error', detail: error.value, life: 3000 });
-  } else {
-    message.state = ConversationState.COMPLETED;
-    currentAttempt.result = ConversationState.COMPLETED;
-    currentAttempt.response = agent_message.message;
-    console.log("Agent Message Received: ", agent_message);
-    if (agent_message.stats) message.stats = agent_message.stats;
-    current_question.value = '';
-  }
-
-  await update_message_stream(message);
-  isAgentThinking.value = false;
 }
 const { session } = useSession()
 
 </script>
 
 <template>
-  <div class="p-4 md:p-10 flex flex-col gap-y-10">
-    <Navbar/>
-    <div class="w-full flex flex-col gap-y-4">
+  <div class="page-dense flex flex-col text-density-high">
+
+    <div class="w-full flex flex-col section-dense">
       <div>
 <!--        This session has been active since {{ session }}.-->
       </div>
-      <div class="config flex flex-col md:flex-row gap-y-6 md:gap-x-6">
-        <div class="card md:w-3/5"
-             :class="{'md:w-full': !show_model_config_ui}">
-          <Panel header="Database" toggleable :collapsed="config_collapse_state.db" :pt="{root: {
-            class:'border-surface-200 dark:border-surface-700'
-          }}" :ptOptions="{mergeSections:true, mergeProps: true}">
-            <div>
-              <div class="w-full flex flex-row gap-10 flex-wrap justify-stretch">
-                <DatabaseSelector :sample_mode="sample_mode"
-                                  @DBConfigUpdated="connection_details_updated"
-                                  @sampleModeUpdated="update_sample_mode"
-                                  @dbConfigAvailableInStorage="update_db_collapse_state"
-                />
-              </div>
-            </div>
-          </Panel>
-        </div>
-        <div class="card md:w-2/5 h-full" v-show="show_model_config_ui">
-          <Panel header="Model" toggleable :collapsed="config_collapse_state.model" class="rounded-b-xl h-full">
-            <div class="h-full ">
-              <div class="w-full flex flex-row gap-10 flex-wrap justify-stretch">
-                <ModelSelector @modelConfigUpdated="model_updated"
-                               @modelConfigAvailableInStorage="update_model_collapse_state"/>
-              </div>
-            </div>
-          </Panel>
-        </div>
-      </div>
 
-      <Card class="border border-blue-900 grow max-w-full">
+
+      <Card class="border border-blue-900 grow max-w-full card-dense">
         <template #content>
-          <div class="flex flex-col gap-y-6">
+          <div class="flex flex-col conversation-dense">
             <ConversationsContainer :conversations="messages" :isThinking="isAgentThinking"
                                     @retry="ask_question(true)"/>
-            <div class="flex gap-x-2 min-h-20 border p-2 justify-center items-center rounded-xl">
+            <div class="flex gap-dense min-h-12 p-2 justify-center items-center rounded-xl">
               <TextEditor :initial_content="current_question" @contentUpdated="update_question"
                           @contentReady="ask_question" class="h-full"/>
-              <ButtonIcones icon="solar:square-arrow-up-bold" size="36" class="h-fit" @click="ask_question"/>
+              <ButtonIcones icon="solar:square-arrow-up-bold" size="36" class="h-fit btn-dense" @click="ask_question"/>
             </div>
           </div>
         </template>

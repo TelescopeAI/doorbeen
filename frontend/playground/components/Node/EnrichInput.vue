@@ -20,15 +20,15 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="">
-    <div v-if="nodeData" class="space-y-6">
-      <div class="bg-white shadow rounded-lg p-6">
-        <h3 class="text-lg font-semibold mb-2 text-blue-600">Reframed Question</h3>
-        <p class="text-gray-700">{{ nodeData.improved_input }}</p>
-      </div>
+  <div class="prose-dense text-density-high">
+    <div v-if="nodeData" class="conversation-dense">
+              <div class="bg-white shadow rounded-lg p-3">
+          <h3 class="text-lg font-semibold mb-1 text-blue-600">Reframed Question</h3>
+          <p class="text-gray-700">{{ nodeData.improved_input }}</p>
+        </div>
 
-      <div class="bg-white shadow rounded-lg p-6">
-        <h3 class="text-lg font-semibold mb-2 text-yellow-600">Assumptions</h3>
+      <div class="bg-white shadow rounded-lg p-3">
+        <h3 class="text-lg font-semibold mb-1 text-yellow-600">Assumptions</h3>
         <ul class="space-y-4">
           <li v-for="(assumptions, category) in nodeData.assumptions" :key="category">
             <h4 class="font-semibold capitalize text-yellow-900 mb-2">{{ category }}</h4>
@@ -41,8 +41,8 @@ onMounted(() => {
         </ul>
       </div>
 
-      <div class="bg-white shadow rounded-lg p-6">
-        <h3 class="text-lg font-semibold mb-2 text-purple-600">Variations</h3>
+      <div class="bg-white shadow rounded-lg p-3">
+        <h3 class="text-lg font-semibold mb-1 text-purple-600">Variations</h3>
         <ul class="list-disc pl-5">
           <li v-for="(variation, index) in nodeData.variations" :key="index" class="text-gray-700 mb-2">
             {{ variation }}

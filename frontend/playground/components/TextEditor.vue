@@ -1,9 +1,5 @@
 <script setup lang="ts">
-import { Extension } from "@tiptap/core";
-import { useEditor, EditorContent } from '@tiptap/vue-3'
-import StarterKit from '@tiptap/starter-kit'
-import { Placeholder } from "@tiptap/extension-placeholder";
-
+import { Input } from '@/components/ui/input'
 
 const props = defineProps({
   initial_content: {
@@ -17,67 +13,38 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['contentUpdated', 'contentReady']);
-const editor_content = ref(props.initial_content);
 
-const CustomEnterOverride = Extension.create({
-  addKeyboardShortcuts() {
-    return {
-      'Enter': ({ editor }) => {
-        console.log("Enter Pressed");
-        // Custom behavior for Enter key
-        emit('contentReady', editor.getText());
-        editor.commands.clearContent()
-      },
-    };
-  },
+const inputValue = ref(props.initial_content);
+
+// Watch for changes in input value and emit contentUpdated
+watch(inputValue, (newValue) => {
+  emit('contentUpdated', newValue);
 });
 
-const editor = useEditor({
-  content: editor_content.value,
-  extensions: [
-    StarterKit,
-    Placeholder.configure({
-      placeholder: props.placeholder,
-    }),
-    CustomEnterOverride
-  ],
-  editorProps: {
-    attributes: {
-      class: 'focus:outline-none',
-    },
-  },
-  onUpdate({ editor }) {
-    emit('contentUpdated', editor.getText());
+// Handle Enter key press
+const handleKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Enter') {
+    console.log("Enter Pressed");
+    emit('contentReady', inputValue.value);
+    inputValue.value = ''; // Clear content after Enter
   }
-});
+};
 
-// watch(() => props.initial_content, (newVal) => {
-//   editor.commands.setContent(newVal);
-// });
-
-onBeforeUnmount(() => {
-  editor.value?.destroy();
+// Watch for changes in initial_content prop
+watch(() => props.initial_content, (newVal) => {
+  inputValue.value = newVal;
 });
 </script>
 
 <template>
-  <editor-content :editor="editor" class="h-full w-full p-2"/>
+  <Input 
+    v-model="inputValue"
+    :placeholder="placeholder"
+    class="h-full w-full p-2 focus:outline-none"
+    @keydown="handleKeydown"
+  />
 </template>
 
 <style scoped>
-p.is-editor-empty:first-child::before {
-  color: var(--primary-500);
-  content: attr(data-placeholder);
-  float: left;
-  height: 0;
-  pointer-events: none;
-}
-
-.tiptap p.is-empty::before {
-  color: #adb5bd;
-  content: attr(data-placeholder);
-  float: left;
-  height: 0;
-  pointer-events: none;
-}
+/* Styles removed as they were TipTap specific */
 </style>

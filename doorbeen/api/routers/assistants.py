@@ -1,5 +1,6 @@
 import logging
-from typing import Annotated, Union, List, Dict, Any, Optional, AsyncGenerator, Generator
+import traceback
+from typing import Annotated
 
 import httpx
 from clerk_backend_api import Clerk
@@ -7,24 +8,12 @@ from clerk_backend_api.jwks_helpers import RequestState, AuthenticateRequestOpti
 from fastapi import APIRouter, Body
 from fastapi import HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from psycopg import AsyncConnection
 from starlette.responses import StreamingResponse, JSONResponse
 
 from doorbeen.api.schemas.requests.assistants import AskLLMRequest
-from doorbeen.core.assistants.analysis.sql.query.graph.builder import SQLAgentGraphBuilder
-from doorbeen.core.assistants.memory.locations.postgres import PostgresLocation
 from doorbeen.core.chat.assistants import AssistantService
 from doorbeen.core.config.execution_env import ExecutionEnv
-from doorbeen.core.connections.clients.SQL.common import CommonSQLClient
-from doorbeen.core.connections.clients.service import DBClientService
-from doorbeen.core.events.generator import AgentEventGenerator
-from doorbeen.core.models.provider import ModelProvider
-from doorbeen.core.types.databases import DatabaseTypes
-from doorbeen.core.types.outputs import NodeExecutionOutput
-from doorbeen.core.types.ts_model import TSModel
 from doorbeen.core.users.user import clerk_instance
 
 AssistantsRouter = APIRouter()
@@ -74,24 +63,64 @@ async def authed_request_state(
 
 # Create an instance of the service
 
-
 # Then update the route to use the service
-@AssistantsRouter.post("/assistants", tags=["Assistants"])
+@AssistantsRouter.post("/assistants", tags=["Assistants"], operation_id="data_analysis")
 async def ask(request: AskLLMRequest = Body()):
-    # Convert to the old request format
-    request_data = AskLLMRequest(**request.model_dump())
-    assistant_service = AssistantService()
-    
-    # Determine if we should stream based on the request
-    stream = getattr(request, "stream", True)
-    
-    # Use the service instance
-    result = await assistant_service.process_llm_request(request_data, stream=stream)
-    
-    if stream:
-        return StreamingResponse(
-            result,
-            media_type="application/x-ndjson"
+    try:
+        logging.info(f"[ASSISTANTS] Starting new request processing")
+        logging.info(f"[ASSISTANTS] Request data: {request.model_dump()}")
+        
+        # Convert to the old request format
+        request_data = AskLLMRequest(**request.model_dump())
+        logging.info(f"[ASSISTANTS] Creating AssistantService instance")
+        assistant_service = AssistantService()
+        
+        # Determine if we should stream based on the request
+        stream = getattr(request, "stream", True)
+        logging.info(f"[ASSISTANTS] Stream mode: {stream}")
+        
+        logging.info(f"[ASSISTANTS] Calling assistant_service.process_llm_request")
+        # Use the service instance with timeout handling
+        result = await assistant_service.process_llm_request(request_data, stream=stream)
+        
+        if stream:
+            logging.info(f"[ASSISTANTS] Returning StreamingResponse")
+            return StreamingResponse(
+                result,
+                media_type="application/x-ndjson"
+            )
+        else:
+            logging.info(f"[ASSISTANTS] Returning JSONResponse")
+            return JSONResponse(content=result)
+            
+    except httpx.ReadTimeout as e:
+        logging.error(f"[ASSISTANTS] Timeout error: {str(e)}")
+        logging.error(f"[ASSISTANTS] Timeout traceback: {traceback.format_exc()}")
+        error_message = {
+            "error": "Request timed out. The operation took longer than expected to complete.",
+            "status": "timeout"
+        }
+        return JSONResponse(
+            content=error_message,
+            status_code=504  # Gateway Timeout
         )
-    else:
-        return JSONResponse(content=result)
+    except Exception as e:
+        logging.error(f"[ASSISTANTS] Unexpected error: {str(e)}")
+        logging.error(f"[ASSISTANTS] Error type: {type(e).__name__}")
+        logging.error(f"[ASSISTANTS] Full traceback: {traceback.format_exc()}")
+        
+        # Also log to stdout for immediate visibility
+        print(f"[ASSISTANTS] Unexpected error: {str(e)}")
+        print(f"[ASSISTANTS] Error type: {type(e).__name__}")
+        print(f"[ASSISTANTS] Full traceback: {traceback.format_exc()}")
+        
+        error_message = {
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "status": "error"
+        }
+        return JSONResponse(
+            content=error_message,
+            status_code=500
+        )
+    

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import Button from 'primevue/button';
+import { Button } from '~/components/ui/button'
+import { RefreshCw } from 'lucide-vue-next'
 const emit = defineEmits(['retry']);
 
 const retry = () => {
@@ -15,7 +16,10 @@ const retry = () => {
     <p>Looks like something went wrong. Ensure the database and model credentials are valid</p>
     <p></p>
   </div>
-  <Button label="Retry" icon="pi pi-refresh" iconPos="right" raised severity="warning" @click="retry"/>
+  <Button variant="destructive" @click="retry">
+    <RefreshCw class="w-4 h-4 mr-2" />
+    Retry
+  </Button>
 </div>
 </template>
 

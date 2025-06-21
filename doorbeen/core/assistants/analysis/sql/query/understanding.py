@@ -48,8 +48,21 @@ class QueryUnderstandingEngine(TSModel):
     cb_manager: Optional[ModelCallback] = None
 
     async def get_prompt(self, question: str, selected_tables: List[str],
-                         table_schemas: DatabaseSchema):
-        prompt = f"""
+                         table_schemas: DatabaseSchema, enhanced_system_prompt: str = None):
+        
+        # Use enhanced system prompt if provided, otherwise use default
+        if enhanced_system_prompt:
+            base_prompt = enhanced_system_prompt + f"""
+
+User Question: {question}
+
+Table Schemas:
+{self._format_schema_info(table_schemas)}
+
+Selected Tables: {', '.join(selected_tables)}
+"""
+        else:
+            base_prompt = f"""
         Analyze the following user question and table schemas to understand the query requirements:
 
         User Question: {question}
@@ -92,6 +105,35 @@ class QueryUnderstandingEngine(TSModel):
         5. Operations: What common operations should be performed on the data to achieve the objective? Mention the
                        column names and the operations that should be performed on them.
                        For example, grouping by a column, sorting by a column, filtering by a column, etc. 
+
+        Your response should be in the following JSON format:
+        {{
+            "objective": "Clear statement of what the user wants",
+            "plan": {{
+                "groups":[
+                    {{
+                        "name": "<Short Group Name>",
+                        "order": "<The order in which the group operations should be executed>"
+                        "depends_on": "<None or the order number of the dependant group>"
+                        "tasks": [{{
+                            "name": "<Task 1 Name>",
+                            "operation": "<Operation(Explain in depth as much as required. Not too short nor long)>",
+                            "order": <Order Number>
+                        }},
+                        ...,
+                        ...,
+                        ]
+                    }},
+                    ...
+                ],
+                }},
+            "reasoning": "Detailed explanation of how to achieve the objective using the available data",
+            "tests": ["<Test 1>", "<Test 2>", ...],
+            "operations": ["<Operation 1>", "<Operation 2>", ...]
+        }}
+        """
+        
+        prompt = base_prompt + """
 
         Your response should be in the following JSON format:
         {{

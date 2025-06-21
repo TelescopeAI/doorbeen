@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import Card from 'primevue/card';
-import Tag from 'primevue/tag';
+import { Card, CardContent, CardTitle } from '~/components/ui/card';
+import { Badge } from '~/components/ui/badge';
 
 const props = defineProps({
   node: {
@@ -25,13 +25,13 @@ const objectiveStatus = computed(() => {
   const unmetCount = nodeData.value?.query?.unmet_reasons?.length || 0;
 
   if (metCount === 0 && unmetCount > 0) {
-    return { text: 'No Objectives Met', severity: 'danger' };
+    return { text: 'No Objectives Met', variant: 'destructive' };
   } else if (metCount > 0 && unmetCount === 0) {
-    return { text: 'All Objectives Met', severity: 'success' };
+    return { text: 'All Objectives Met', variant: 'default' };
   } else if (metCount > 0 && unmetCount > 0) {
-    return { text: 'Some Objectives Met', severity: 'warning' };
+    return { text: 'Some Objectives Met', variant: 'secondary' };
   } else {
-    return { text: 'Unknown Status', severity: 'info' };
+    return { text: 'Unknown Status', variant: 'outline' };
   }
 });
 </script>
@@ -39,10 +39,12 @@ const objectiveStatus = computed(() => {
 <template>
   <div class="p-4">
     <Card class="mb-4">
-      <template #content>
+      <CardContent>
         <div class="mb-4">
           <h3 class="text-lg font-semibold mb-2">Objective Status:</h3>
-          <Tag :severity="objectiveStatus.severity" :value="objectiveStatus.text" class="text-sm" />
+          <Badge :variant="objectiveStatus.variant" class="text-sm">
+            {{ objectiveStatus.text }}
+          </Badge>
         </div>
         <div v-if="nodeData?.query?.met_reasons?.length > 0" class="mb-4">
           <h3 class="text-lg font-semibold mb-2">Met Objectives:</h3>
@@ -60,14 +62,14 @@ const objectiveStatus = computed(() => {
             </li>
           </ul>
         </div>
-      </template>
+      </CardContent>
     </Card>
 
     <Card>
-      <template #title>
+      <CardTitle>
         <h2 class="text-xl font-bold">Insights</h2>
-      </template>
-      <template #content>
+      </CardTitle>
+      <CardContent>
         <ul class="list-disc pl-5">
           <li v-for="(insight, index) in nodeData?.insights" :key="index" class="text-sm mb-2">
             {{ insight }}
@@ -77,7 +79,7 @@ const objectiveStatus = computed(() => {
           <h3 class="text-lg font-semibold mb-2">Next Step:</h3>
           <p class="text-sm">{{ nodeData.next_step }}</p>
         </div>
-      </template>
+      </CardContent>
     </Card>
   </div>
 </template>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const props = defineProps({
   node: {
-    type: Object,
+    type: [Object, String],
     required: true
   }
 })
@@ -9,7 +9,7 @@ const props = defineProps({
 
 <template>
 <div>
-  {{node}}
+  {{ node }}
 </div>
 </template>
 

@@ -177,3 +177,9 @@ frontend/playground/.dist
 frontend/playground/.dist/
 frontend/playground/.data/
 
+# Observations
+observations/
+
+# Cursor Rules
+.cursor/
+
