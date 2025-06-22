@@ -112,3 +112,104 @@ export const sql_agent_request = async (sample_mode: boolean) => {
     }
     return { ask, ask_sample_db };
 }
+
+// Enhanced network functions with thread support
+export const useThreadAwareAssistant = async (sample_mode: boolean) => {
+    const { ask, ask_sample_db } = await sql_agent_request(sample_mode)
+    
+    // Enhanced ask function with thread support
+    const askWithThread = async (
+        question: string, 
+        connection: any, 
+        model: MODEL_CONFIG,
+        thread_id?: string,
+        message_metadata?: Record<string, any>
+    ) => {
+        const parsedConnection = parseDBConfig(connection)
+        console.log("Parsed Connection: ", parsedConnection)
+
+        const request_body = {
+            question: question,
+            model: model,
+            connection: parsedConnection,
+            ...(thread_id && { thread_id }),
+            ...(message_metadata && { message_metadata })
+        }
+        
+        console.log("Request Body with Thread: ", request_body)
+        
+        const url = getAPIServerURL() + "/api/v1/assistants";
+        let agent_message: any = {
+            id: useGenerateUUID4(),
+            isAgent: true,
+            state: ConversationState.RESPONSE,
+            thread_id: thread_id,
+            message: '',
+            time: new Date()
+        };
+
+        const { data, error } = await useFetch(url, {
+            key: `${url}-${thread_id || 'no-thread'}`,
+            method: "POST",
+            body: JSON.stringify(request_body),
+            onRequestError({request, options, error}) {
+                console.log("Error: ", error);
+            }
+        });
+        
+        if (error.value) {
+            console.log("Error: ", error.value)
+            agent_message = null
+        } else {
+            const responseData = data.value as any
+            agent_message.message = responseData?.output || ''
+            agent_message.time = new Date()
+            agent_message.thread_id = responseData?.thread_id || thread_id
+            if (responseData?.stats) {
+                agent_message.stats = responseData.stats
+            }
+        }
+        
+        return { 
+            agent_message: agent_message, 
+            error, 
+            thread_id: (data.value as any)?.thread_id || thread_id 
+        };
+    };
+
+    // Enhanced streaming with thread support
+    const streamWithThread = async (
+        question: string, 
+        connection: any, 
+        model: MODEL_CONFIG,
+        thread_id?: string,
+        message_metadata?: Record<string, any>,
+        onChunk?: (chunk: string) => void
+    ) => {
+        const parsedConnection = parseDBConfig(connection)
+        
+        const request_body = {
+            question: question,
+            model: model,
+            connection: parsedConnection,
+            ...(thread_id && { thread_id }),
+            ...(message_metadata && { message_metadata })
+        }
+        
+        const url = getAPIServerURL() + "/api/v1/assistants";
+        
+        // Use the existing SSE connection helper
+        return createSSEConnection(url, request_body, onChunk || (() => {}));
+    };
+
+    // Backward compatibility - use existing functions if no thread needed
+    return {
+        // Original functions
+        ask,
+        ask_sample_db,
+        
+        // Enhanced functions
+        askWithThread,
+        streamWithThread
+    }
+}

@@ -1,4 +1,5 @@
-from typing import Optional
+from typing import Optional, Dict, Any
+from uuid import UUID
 
 from pydantic import Field
 
@@ -56,3 +57,7 @@ class AskLLMRequest(TSModel):
     model: ModelMetaRequest
     connection: DBConnectionRequestParams
     stream: bool = Field(True, description="Whether to stream the response or not")
+    
+    # Storage-related fields (optional for backward compatibility)
+    thread_id: Optional[UUID] = Field(None, description="Thread ID for conversation continuity")
+    message_metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata for the message")

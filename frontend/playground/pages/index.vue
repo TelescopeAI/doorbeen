@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useToast } from "primevue/usetoast";
+import { toast } from 'vue-sonner';
 import type { MODEL_CONFIG } from "~/types/models";
 import { type ConversationMessage, ConversationState } from "~/types/conversations";
 import { useGenerateUUID4 } from "~/composables/uuid";
@@ -12,8 +12,11 @@ import { getAPIServerURL } from "~/composables/server";
 import Card from 'primevue/card';
 import {SSEService} from "~/core/streaming/sse";
 import { useSession } from '@clerk/vue'
+import { useThreadStorage } from '~/composables/useThreadStorage'
+import type { Thread } from '~/types/threads'
 
-const toast = useToast();
+
+const route = useRoute();
 const connection = reactive({
   host: "localhost", port: "5432", username: "root", password: "password",
   database: "", db_type: "bigquery"
@@ -23,8 +26,17 @@ let model_params: MODEL_CONFIG = reactive({
 });
 const sseService = ref<SSEService | null>(null);
 
+// Thread management
+const { 
+  currentThread, 
+  setCurrentThread, 
+  getThread, 
+  createThread,
+  initializeCurrentThread 
+} = useThreadStorage();
+
 // Initialize configurations from localStorage
-onMounted(() => {
+onMounted(async () => {
   // Load database configuration
   const storedDbConfig = localStorage.getItem('db-config')
   if (storedDbConfig) {
@@ -53,12 +65,19 @@ onMounted(() => {
       console.error('Error parsing stored model config:', error)
     }
   }
+
+  // Initialize thread management for new conversations
+  await initializeCurrentThread()
+  
+  // Clear any existing thread for new conversations
+  setCurrentThread(null)
 })
 
 const model_updated = (model_config: MODEL_CONFIG) => {
   model_params = model_config;
-  toast.add({ severity: 'success', summary: 'Model Updated',
-              detail: model_config.name + " would be used for all subsequent conversations", life: 3000 });
+  toast.success('Model Updated', {
+    description: model_config.name + " would be used for all subsequent conversations"
+  });
 };
 const show_model_config_ui = ref(true);
 const sample_mode = ref(false);
@@ -80,10 +99,10 @@ const messages: Array<ConversationMessage> = reactive([]);
 const current_message = ref<ConversationMessage | null>(null);
 
 let isAgentThinking = ref(false);
-let conn_details = reactive(null);
+let conn_details = reactive({});
 const connection_details_updated = (new_conn: any) => {
   conn_details = new_conn;
-  toast.add({ severity: 'success', summary: 'Connection Updated', detail: 'Database Credentials Updated', life: 3000 });
+  toast.success('Connection Updated', { description: 'Database Credentials Updated' });
 };
 const config_collapse_state = reactive({model: false, db: false});
 
@@ -107,11 +126,11 @@ const update_message_stream = async (message: ConversationMessage) => {
 };
 
 // Create a ref to hold the cumulative stream state
-const cumulativeStreamResponse = ref<StreamResponse>(new StreamResponse());
+const cumulativeStreamResponse = ref<StreamResponse>(new StreamResponse(null));
 
 // Function to reset the stream state
 const resetStreamState = () => {
-  cumulativeStreamResponse.value = new StreamResponse();
+  cumulativeStreamResponse.value = new StreamResponse(null);
 };
 
 // Enhanced node-specific data processing
@@ -205,115 +224,61 @@ watch(() => streamMessages, (newMessages) => {
 }, { deep: true });
 
 async function ask_question(retry: boolean = false) {
-  retry = retry === true;
-  let qn = retry ? last_question.value : current_question.value;
-  if (!retry) last_question.value = qn;
+  const qn = current_question.value;
   
-  console.log("Asking Question: ", qn);
+  console.log("Index page: Creating thread and redirecting for question:", qn);
 
   // Check if we have required configurations
-  console.log('Current configurations:', { conn_details, model_params });
-  
   if (!conn_details) {
-    toast.add({ severity: 'error', summary: 'Configuration Missing', detail: 'Please configure your database connection first', life: 3000 });
+    toast.error('Configuration Missing', { description: 'Please configure your database connection first' });
     return;
   }
   
   if (!model_params || !model_params.name) {
-    toast.add({ severity: 'error', summary: 'Configuration Missing', detail: 'Please configure your AI model first', life: 3000 });
+    toast.error('Configuration Missing', { description: 'Please configure your AI model first' });
     return;
   }
   
   if (!qn || qn.trim() === '') {
-    toast.add({ severity: 'error', summary: 'Question Required', detail: 'Please enter a question first', life: 3000 });
+    toast.error('Question Required', { description: 'Please enter a question first' });
     return;
   }
 
-  // Reset the stream state before starting a new question or retry
-  resetStreamState();
-
-  let message: ConversationMessage;
-  if (retry && messages.length > 0) {
-    message = messages[messages.length - 1];
-    if (!message.attempts) message.attempts = [];
-    message.attempts.push({
-      count: message.attempts.length,
-      result: ConversationState.INITIATED,
-      response: ''
-    });
-  } else {
-    message = {
-      id: useGenerateUUID4(),
-      isAgent: false,
-      message: qn,
-      time: new Date(),
-      state: ConversationState.INITIATED,
-      attempts: [{
-        count: 0,
-        result: ConversationState.INITIATED,
-        response: ''
-      }],
-      stream: new StreamResponse()
-    };
-    messages.push(message);
-  }
-
-  current_message.value = message;
-  message.state = ConversationState.PROCESSING;
-  if (message.attempts && message.attempts.length > 0) {
-    message.attempts[message.attempts.length - 1].result = ConversationState.PROCESSING;
-  }
-  await update_message_stream(message);
+  // Show loading state
   isAgentThinking.value = true;
 
+  // Create a new thread for this conversation and redirect to chat route
   try {
-    console.log("🔐 Getting auth token...");
-    const user_auth_token = await window.Clerk?.session?.getToken();
+    console.log("Creating new thread...");
+    const newThread = await createThread({
+      metadata: {
+        title: qn.substring(0, 50) + (qn.length > 50 ? '...' : ''),
+        created_from: 'index_page',
+        source: 'new_conversation'
+      }
+    });
     
-    if (!user_auth_token) {
-      throw new Error('Authentication token not available');
+    console.log("Thread created successfully:", newThread);
+    console.log("Thread ID:", newThread?.id);
+    console.log("Thread ID type:", typeof newThread?.id);
+    
+    if (!newThread || !newThread.id) {
+      throw new Error('Thread creation returned invalid thread');
     }
-
-    console.log("✅ Auth token obtained");
-
-    // Clean up any existing SSE connection
-    if (sseService.value) {
-      console.log("🧹 Cleaning up existing SSE connection");
-      sseService.value.disconnect();
+    
+    console.log("Navigating to chat route...");
+    
+    // Navigate to the chat route with the new thread and pass the question
+    await navigateTo(`/chat/${newThread.id}?question=${encodeURIComponent(qn)}`);
+    
+    // Refresh sidebar threads after successful navigation
+    if (process.client && (window as any).refreshSidebarThreads) {
+      await (window as any).refreshSidebarThreads();
     }
-
-    const requestPayload = {
-      question: qn,
-      model: model_params,
-      connection: parseDBConfig(conn_details),
-      stream: true
-    };
-
-    console.log('🚀 Setting up SSE connection with payload:', requestPayload);
-
-    sseService.value = new SSEService(`${getAPIServerURL()}/api/v1/assistants`, user_auth_token, {
-      body: requestPayload
-    });
-
-    sseService.value.onMessage((sse_event) => {
-      console.log('📨 Received SSE data:', sse_event);
-      streamMessages.value.push(sse_event);
-    });
-
-    await sseService.value.connect();
-    console.log('✅ SSE Connection established successfully');
-
-  } catch (error: any) {
-    console.error('❌ Error setting up SSE connection:', error);
-    const currentAttempt = message.attempts?.[message.attempts.length - 1];
-    if (currentAttempt) {
-      message.state = ConversationState.ERROR;
-      currentAttempt.result = ConversationState.ERROR;
-      currentAttempt.response = error?.message || 'Failed to establish connection';
-      message.error = error?.message || 'Failed to establish connection';
-      await update_message_stream(message);
-    }
-    toast.add({ severity: 'error', summary: 'Connection Error', detail: error?.message || 'Failed to connect to server', life: 3000 });
+    
+  } catch (error) {
+    console.error('Failed to create thread:', error);
+    toast.error('Thread Creation Failed', { description: 'Could not create new conversation' });
     isAgentThinking.value = false;
   }
 }

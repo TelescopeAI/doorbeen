@@ -79,9 +79,21 @@ async def ask(request: AskLLMRequest = Body()):
         stream = getattr(request, "stream", True)
         logging.info(f"[ASSISTANTS] Stream mode: {stream}")
         
-        logging.info(f"[ASSISTANTS] Calling assistant_service.process_llm_request")
-        # Use the service instance with timeout handling
-        result = await assistant_service.process_llm_request(request_data, stream=stream)
+        # Check if this is a storage-enabled request (has thread_id or message_metadata)
+        use_storage = request.thread_id is not None or request.message_metadata is not None
+        
+        if use_storage:
+            logging.info(f"[ASSISTANTS] Using storage-enabled processing (thread_id: {request.thread_id})")
+            # Use the new storage-enabled method
+            result = await assistant_service.process_llm_request_with_storage(
+                request_data, 
+                thread_id=request.thread_id, 
+                stream=stream
+            )
+        else:
+            logging.info(f"[ASSISTANTS] Using legacy processing (backward compatibility)")
+            # Use the legacy method for backward compatibility
+            result = await assistant_service.process_llm_request(request_data, stream=stream)
         
         if stream:
             logging.info(f"[ASSISTANTS] Returning StreamingResponse")

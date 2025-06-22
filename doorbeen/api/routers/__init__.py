@@ -6,9 +6,11 @@ from doorbeen.api.routers.agents import SQLAgentRouter
 from doorbeen.api.routers.assistants import AssistantsRouter
 from doorbeen.api.routers.samples import SamplesRouter
 from doorbeen.api.routers.validators import ValidationRouter
+from doorbeen.api.routers.threads import ThreadsRouter
 
 ROUTES: List[dict] = [
     {"router": AssistantsRouter, "enabled": True, "internal": False},
+    {"router": ThreadsRouter, "enabled": True, "internal": False},
     # {"router": SQLAgentRouter, "enabled": True, "internal": False},
     # {"router": SamplesRouter, "enabled": True, "internal": False},
     # {"router": ValidationRouter, "enabled": True, "internal": False},

@@ -33,7 +33,7 @@ langchain = "0.3.22"
 fastapi = {extras = ["all"], version = "0.115.12"}
 pydantic = "2.11.1"
 uvicorn = {extras = ["standard"], version = "^0.34.0"}
-sqlalchemy = "2.0.40"
+sqlalchemy = {extras = ["asyncio"], version = "^2.0.41"}
 psycopg-binary = "^3.1.18"
 pymongo = "^4.6.3"
 secweb = "^1.9.1"
@@ -58,6 +58,8 @@ clerk-backend-api = "^2.0.0"
 scalar-fastapi = "^1.0.3"
 deprecated = "^1.2.18"
 pytz = "^2024.1"
+alembic = "^1.16.2"
+aiosqlite = "^0.21.0"
 
 
 [[tool.poetry.source]]

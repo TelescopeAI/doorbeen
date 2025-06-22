@@ -5,7 +5,7 @@ import { Button } from '~/components/ui/button';
 import { useClipboard } from '@vueuse/core'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog as ShadDialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Copy, Database, Bot } from 'lucide-vue-next';
+import { Copy, Database, Bot, Loader2 } from 'lucide-vue-next';
 import DatabaseSelector from '@/components/Database/Selector.vue'
 import ModelSelector from '@/components/Model/Selector.vue'
 
@@ -295,7 +295,7 @@ onUnmounted(() => {
       </CardContent>
     </Card>
     <div v-if="isThinking" class="p-2 flex gap-x-2 items-center text-gray-500">
-      <Icon name="svg-spinners:blocks-shuffle-3" size="24"/>
+      <Loader2 class="h-6 w-6 animate-spin" />
       <p class="text-lg"> Processing </p>
     </div>
     <ConversationsErrorHandler v-show="lastMessageErrored" @retry="retry_request"/>
