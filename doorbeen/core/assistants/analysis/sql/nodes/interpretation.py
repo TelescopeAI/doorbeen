@@ -20,7 +20,7 @@ class InterpretInputNode(TSModel):
         
         try:
             configuration = config.get("configurable", {})
-            assert state.grade is not None, "Grade should be present in the state"
+            assert state.grade is not None, "Grade should be present in the context"
             connection: CommonSQLClient = configuration.get("connection", None)
             
             # Log connection status
@@ -29,9 +29,9 @@ class InterpretInputNode(TSModel):
             else:
                 logging.warning("⚠️ [INTERPRET_NODE] No database connection found")
             
-            # Use schema from state if available, otherwise load from connection
+            # Use schema from context if available, otherwise load from connection
             if state.table_schemas:
-                logging.info("✅ [INTERPRET_NODE] Using cached table schemas from state")
+                logging.info("✅ [INTERPRET_NODE] Using cached table schemas from context")
                 table_schemas = state.table_schemas
             else:
                 logging.info("🔍 [INTERPRET_NODE] Loading table schemas from database")
@@ -43,7 +43,7 @@ class InterpretInputNode(TSModel):
             
             # Check if we have enrichment context
             enriched_question = getattr(state, 'enriched_question', None)
-            logging.info(f"🔍 [INTERPRET_NODE] Enriched question from state: {enriched_question}")
+            logging.info(f"🔍 [INTERPRET_NODE] Enriched question from context: {enriched_question}")
             logging.info(f"🔍 [INTERPRET_NODE] Original input: {state.input}")
             
             if enriched_question and enriched_question != state.input:

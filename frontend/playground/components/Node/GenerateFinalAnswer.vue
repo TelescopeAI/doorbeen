@@ -8,6 +8,7 @@ import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
 import { Separator } from '~/components/ui/separator';
+import { Input } from '~/components/ui/input';
 import { 
   Hash, 
   User, 
@@ -26,7 +27,10 @@ import {
   ExternalLink,
   CheckCircle,
   Lightbulb,
-  ArrowRight
+  ArrowRight,
+  Edit2,
+  Check,
+  X
 } from 'lucide-vue-next';
 import MDRenderer from '../MDRenderer.vue';
 
@@ -44,6 +48,11 @@ const results = ref<any[]>([]);
 const columns = ref<{ field: string; header: string }[]>([]);
 
 const dataTable = ref<any>(null);
+
+// Edit functionality state
+const editingQuestionIndex = ref<number | null>(null);
+const editedQuestionText = ref<string>('');
+const hoveredQuestionIndex = ref<number | null>(null);
 
 const isSingleResult = computed(() => results.value.length === 1);
 
@@ -187,6 +196,32 @@ const exportCSV = () => {
 const handleFollowUpQuestion = (question: string) => {
   console.log('Starting new conversation with question:', question);
   emit('start-new-question', question);
+};
+
+// Edit functionality functions
+const startEditing = (index: number, question: string) => {
+  editingQuestionIndex.value = index;
+  editedQuestionText.value = question;
+};
+
+const cancelEditing = () => {
+  editingQuestionIndex.value = null;
+  editedQuestionText.value = '';
+};
+
+const saveAndSubmit = () => {
+  if (editedQuestionText.value.trim()) {
+    handleFollowUpQuestion(editedQuestionText.value.trim());
+    cancelEditing();
+  }
+};
+
+const handleKeyPress = (event: KeyboardEvent) => {
+  if (event.key === 'Enter') {
+    saveAndSubmit();
+  } else if (event.key === 'Escape') {
+    cancelEditing();
+  }
 };
 </script>
 
@@ -342,23 +377,73 @@ const handleFollowUpQuestion = (question: string) => {
         </p>
         
         <div class="grid gap-3">
-          <Button
+          <div
             v-for="(question, index) in nodeData.next_questions"
             :key="index"
-            variant="outline"
-            class="justify-start text-left p-3 h-auto whitespace-normal"
-            @click="handleFollowUpQuestion(question)"
+            class="group relative"
+            @mouseenter="hoveredQuestionIndex = index"
+            @mouseleave="hoveredQuestionIndex = null"
           >
-              <div class="flex items-start gap-3 w-full">
-              <ArrowRight class="w-4 h-4 text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
-                <span class="text-sm leading-relaxed text-gray-800 dark:text-gray-200">{{ question }}</span>
+            <!-- Edit Mode -->
+            <div v-if="editingQuestionIndex === index" class="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg border border-blue-300 dark:border-blue-600">
+              <ArrowRight class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+              <Input
+                v-model="editedQuestionText"
+                @keydown="handleKeyPress"
+                class="flex-1 text-sm"
+                placeholder="Edit your question..."
+                autofocus
+              />
+              <div class="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  @click="saveAndSubmit"
+                  class="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
+                >
+                  <Check class="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  @click="cancelEditing"
+                  class="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  <X class="w-4 h-4" />
+                </Button>
               </div>
-          </Button>
+            </div>
+
+            <!-- Display Mode -->
+            <div v-else class="relative">
+              <Button
+                variant="outline"
+                class="w-full justify-start text-left p-3 h-auto whitespace-normal group-hover:border-blue-300 dark:group-hover:border-blue-600 transition-all duration-200"
+                @click="handleFollowUpQuestion(question)"
+              >
+                <div class="flex items-start gap-3 w-full">
+                  <ArrowRight class="w-4 h-4 text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
+                  <span class="text-sm leading-relaxed text-gray-800 dark:text-gray-200">{{ question }}</span>
+                </div>
+              </Button>
+              
+              <!-- Edit Button (appears on hover) -->
+              <Button
+                v-if="hoveredQuestionIndex === index"
+                size="sm"
+                variant="ghost"
+                @click.stop="startEditing(index, question)"
+                class="absolute top-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              >
+                <Edit2 class="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         </div>
         
         <div class="mt-4 text-xs text-blue-600 dark:text-blue-400 flex items-center">
           <Info class="w-4 h-4 mr-2" />
-          <span>Click any question to start a new analysis conversation</span>
+          <span>Click any question to start a new analysis • Hover to edit questions before submitting</span>
         </div>
       </div>
     </div>

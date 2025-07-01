@@ -195,21 +195,33 @@ INSTRUCTIONS:
 1. Determine if the current question genuinely relates to or builds upon the previous context
 2. If there IS a meaningful connection, provide a specific recall reference explaining what from the previous context is relevant
 3. If there is NO meaningful connection, classify it as a new question
-4. Be conservative - only mark as related if there's a clear, specific connection
+4. Be more liberal in finding connections - look for semantic relationships, not just direct references
+5. Return your analysis in JSON format
 
 EVALUATION CRITERIA FOR "RELATED":
-- References specific data, metrics, or findings from previous context
-- Asks for clarification, expansion, or drill-down on previous results  
-- Uses pronouns or references that only make sense with previous context
-- Builds directly upon previous analysis
+- References specific data, metrics, findings, or results from previous analysis
+- Asks for clarification, expansion, drill-down, or different view of previous results
+- Uses pronouns, "this", "that", "it" or references that only make sense with previous context
+- Builds directly upon previous analysis or findings
+- Asks about similar topics, domains, or data areas as previous questions
+- Requests different metrics, time periods, or filters on the same general topic
+- Follow-up questions about patterns, trends, or insights mentioned in previous analysis
+- Questions that seem to be exploring the same dataset or domain further
+
+EXAMPLES OF RELATED QUESTIONS:
+- Previous: "Show me sales by region", Current: "What about by month?"
+- Previous: "How many users signed up last week?", Current: "What's the trend over the last 3 months?"
+- Previous: Analysis showed high activity in Q3, Current: "Why was Q3 so high?"
+- Previous: Found 150 orders, Current: "Can you break that down by category?"
+- Previous: Sleep data analysis, Current: "What lifestyle changes should I make based on my sleep data?"
 
 EVALUATION CRITERIA FOR "NEW":
-- Completely different topic or domain
-- No reference to previous findings or data
-- Could be understood without any previous context
-- Generic questions that happen to follow other questions
+- Completely different topic, domain, or data area
+- No semantic relationship to previous findings or analysis
+- Could be fully understood without any previous context
+- Introduces entirely new subject matter unrelated to previous work
 
-OUTPUT FORMAT:
+OUTPUT FORMAT (JSON):
 {
     "has_meaningful_connection": true/false,
     "question_type": "related" or "new", 
@@ -230,6 +242,7 @@ CURRENT QUESTION:
 {current_question}
 
 Analyze whether the current question has a meaningful connection to the previous context.
+Look for semantic relationships, follow-up questions, and questions that build upon previous analysis.
 """
 
             messages = [
@@ -267,32 +280,129 @@ Analyze whether the current question has a meaningful connection to the previous
                 "has_meaningful_connection": False
             }
 
+    async def _extract_thread_conversation_context(self, thread_id: str, storage_manager) -> str:
+        """Extract conversation context from thread storage instead of just session messages"""
+        
+        if not thread_id or not storage_manager:
+            print("DEBUG: No thread_id or storage_manager available for context extraction")
+            return ""
+        
+        try:
+            from uuid import UUID
+            thread_uuid = UUID(thread_id)
+            
+            # Get recent messages from thread (limit to last 20 messages for context)
+            messages = await storage_manager.get_messages(thread_uuid, limit=20)
+            
+            if not messages:
+                print(f"DEBUG: No messages found in thread {thread_id}")
+                return ""
+            
+            print(f"DEBUG: Found {len(messages)} messages in thread {thread_id}")
+            
+            # Process messages to extract meaningful context
+            context_messages = []
+            
+            for msg in messages[:-1]:  # Exclude the current question (last message)
+                if msg.role == "user":
+                    # User questions are always meaningful
+                    context_messages.append(f"USER: {msg.content}")
+                    
+                elif msg.role == "assistant":
+                    # Extract meaningful content from assistant responses
+                    try:
+                        # Try to parse as JSON first (structured responses)
+                        import json
+                        json_content = json.loads(msg.content)
+                        extracted_content = self._extract_meaningful_content_from_json(json_content, "AIMessage")
+                        if extracted_content:
+                            context_messages.append(f"ASSISTANT: {extracted_content}")
+                        else:
+                            # Fallback to raw content if no meaningful extraction
+                            context_messages.append(f"ASSISTANT: {msg.content[:300]}...")
+                    except json.JSONDecodeError:
+                        # Plain text assistant response
+                        context_messages.append(f"ASSISTANT: {msg.content[:300]}...")
+                        
+                elif msg.role == "node_event":
+                    # Extract useful information from node events
+                    try:
+                        event_data = json.loads(msg.content)
+                        node_name = event_data.get("name", "unknown_node")
+                        
+                        # Only include final presentation and key analysis events
+                        if node_name in ["finalize", "process_results", "data_exploration", "init_assistant"]:
+                            if "data" in event_data:
+                                try:
+                                    node_content = json.loads(event_data["data"])
+                                    extracted = self._extract_meaningful_content_from_json(node_content, "AIMessage")
+                                    if extracted:
+                                        context_messages.append(f"ANALYSIS ({node_name}): {extracted}")
+                                except (json.JSONDecodeError, TypeError):
+                                    pass
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+            
+            # Keep last 8 most relevant messages to avoid overwhelming the context
+            recent_context = context_messages[-8:]
+            thread_context = "\n".join(recent_context)
+            
+            print(f"DEBUG: Extracted thread context length: {len(thread_context)}")
+            print(f"DEBUG: Thread context preview: {thread_context[:200]}...")
+            
+            return thread_context
+            
+        except Exception as e:
+            print(f"ERROR: Failed to extract thread context: {e}")
+            return ""
+
     def __call__(self, state: SQLAssistantState, config: RunnableConfig):
         configuration = config.get("configurable", {})
         messages_length = len(state.messages)
         connection: CommonSQLClient = configuration.get("connection", None)
+        thread_id = configuration.get("thread_id")
+        storage_manager = configuration.get("storage_manager")
+        
         print("Starting SQL Analysis. Entry Node is initialized.")
         print(f"Connection: {connection}")
-        print(f"Thread ID: {configuration.get('thread_id')}")
+        print(f"Thread ID: {thread_id}")
+        print(f"Storage Manager: {storage_manager is not None}")
         
-        # Extract conversation context from previous messages
+        # Extract conversation context from thread storage OR fallback to session messages
         conversation_context = ""
-        if len(state.messages) > 1:
-            # Build context from previous messages (excluding the current question)
-            context_messages = []
-            for msg in state.messages[:-1]:  # All except current
-                if hasattr(msg, 'content'):
-                    # Try to extract meaningful content, skip system messages and technical responses
-                    content = msg.content
-                    if isinstance(content, str) and len(content.strip()) > 0:
-                        # Skip overly technical JSON responses, keep user questions and assistant summaries
-                        if not (content.strip().startswith('{') and content.strip().endswith('}')):
-                            context_messages.append(f"{msg.__class__.__name__}: {content}")
-                        elif "message" in content.lower() or "summary" in content.lower():
-                            # Include JSON responses that contain user-facing messages
-                            context_messages.append(f"{msg.__class__.__name__}: {content}")
-            
-            conversation_context = "\n".join(context_messages[-3:])  # Last 3 meaningful messages
+        
+        if thread_id and storage_manager:
+            # NEW: Use thread storage for conversation context
+            print("DEBUG: Using thread storage for conversation context")
+            import asyncio
+            conversation_context = asyncio.run(self._extract_thread_conversation_context(thread_id, storage_manager))
+        else:
+            # FALLBACK: Use session messages (original logic)
+            print("DEBUG: Falling back to session messages for conversation context")
+            if len(state.messages) > 1:
+                # Build context from previous messages (excluding the current question)
+                context_messages = []
+                for msg in state.messages[:-1]:  # All except current
+                    if hasattr(msg, 'content'):
+                        content = msg.content
+                        if isinstance(content, str) and len(content.strip()) > 0:
+                            # Handle plain text messages (user questions)
+                            if not (content.strip().startswith('{') and content.strip().endswith('}')):
+                                context_messages.append(f"{msg.__class__.__name__}: {content}")
+                            else:
+                                # Extract meaningful content from JSON responses
+                                try:
+                                    json_content = json.loads(content)
+                                    extracted_content = self._extract_meaningful_content_from_json(json_content, msg.__class__.__name__)
+                                    if extracted_content:
+                                        context_messages.append(extracted_content)
+                                except json.JSONDecodeError:
+                                    # Fallback to raw content if JSON parsing fails
+                                    if "message" in content.lower() or "summary" in content.lower():
+                                        context_messages.append(f"{msg.__class__.__name__}: {content}")
+                
+                # Keep more context for better analysis - last 5 messages instead of 3
+                conversation_context = "\n".join(context_messages[-5:])
 
         # Analyze conversation context for intelligent recall references
         import asyncio
@@ -353,6 +463,96 @@ Analyze whether the current question has a meaningful connection to the previous
 
         print(f"DEBUG: output table_schemas type: {type(output['table_schemas'])}")
         return output
+
+    def _extract_meaningful_content_from_json(self, json_content: dict, message_type: str) -> str:
+        """Extract meaningful content from JSON node outputs for conversation context"""
+        
+        if not isinstance(json_content, dict):
+            return None
+            
+        extracted_parts = []
+        
+        # Extract content based on node type and common patterns
+        if message_type == "AIMessage":
+            
+            # Final Presentation outputs (from finalize node)
+            if "message" in json_content and "ready_to_present" in json_content:
+                # This is a final presentation
+                if json_content.get("ready_to_present"):
+                    extracted_parts.append(f"PREVIOUS ANALYSIS: {json_content['message']}")
+                    if "next_questions" in json_content and json_content["next_questions"]:
+                        extracted_parts.append(f"Suggested follow-ups: {', '.join(json_content['next_questions'][:3])}")
+                    return "\n".join(extracted_parts)
+            
+            # Query Results Analysis (from observation node)
+            elif "insights" in json_content and "all_objectives_met" in json_content:
+                insights = json_content.get("insights", [])
+                if insights:
+                    insights_text = "; ".join([str(insight) for insight in insights[:3]])
+                    extracted_parts.append(f"PREVIOUS FINDINGS: {insights_text}")
+                
+                if json_content.get("all_objectives_met"):
+                    extracted_parts.append("Previous analysis completed successfully")
+                elif json_content.get("some_objectives_met"):
+                    extracted_parts.append("Previous analysis partially completed")
+                    
+                return "\n".join(extracted_parts) if extracted_parts else None
+            
+            # Query Understanding/Interpretation (from interpretation node)
+            elif "objective" in json_content and "reasoning" in json_content:
+                extracted_parts.append(f"PREVIOUS OBJECTIVE: {json_content['objective']}")
+                extracted_parts.append(f"Previous reasoning: {json_content['reasoning']}")
+                return "\n".join(extracted_parts)
+            
+            # SQL Query Generation (from generate node)
+            elif "query" in json_content and isinstance(json_content["query"], str):
+                # Only include if it's not an empty/error query
+                if json_content["query"].strip() and not json_content.get("error"):
+                    extracted_parts.append(f"PREVIOUS SQL QUERY: {json_content['query'][:200]}...")
+                    return "\n".join(extracted_parts)
+            
+            # Data Exploration outputs (from exploration node)
+            elif "exploration_complete" in json_content and json_content.get("exploration_complete"):
+                findings = json_content.get("findings", "")
+                if findings:
+                    extracted_parts.append(f"DATA EXPLORATION: {findings[:300]}...")
+                
+                domain_insights = json_content.get("domain_insights", "")
+                if domain_insights:
+                    extracted_parts.append(f"Domain insights: {domain_insights}")
+                    
+                return "\n".join(extracted_parts) if extracted_parts else None
+            
+            # Enrichment outputs (from enrich node)
+            elif "improved_input" in json_content:
+                improved = json_content.get("improved_input", "")
+                original_assumptions = json_content.get("assumptions", {})
+                if improved:
+                    extracted_parts.append(f"PREVIOUS ENRICHED QUESTION: {improved}")
+                    if original_assumptions:
+                        extracted_parts.append(f"Assumptions made: {str(original_assumptions)[:200]}...")
+                    return "\n".join(extracted_parts)
+            
+            # Execution Results
+            elif "result" in json_content and "query" in json_content:
+                query = json_content.get("query", "")
+                error = json_content.get("error")
+                if not error and query:
+                    extracted_parts.append(f"PREVIOUS EXECUTION: Query executed successfully")
+                    extracted_parts.append(f"Query: {query[:150]}...")
+                elif error:
+                    extracted_parts.append(f"PREVIOUS EXECUTION FAILED: {error}")
+                return "\n".join(extracted_parts) if extracted_parts else None
+        
+        # If no specific pattern matched, try to extract any meaningful text fields
+        meaningful_fields = ["message", "summary", "analysis", "findings", "explanation", "context_analysis"]
+        for field in meaningful_fields:
+            if field in json_content and isinstance(json_content[field], str):
+                content = json_content[field]
+                if len(content.strip()) > 20:  # Only include substantial content
+                    return f"PREVIOUS {field.upper()}: {content[:300]}..."
+        
+        return None
 
 
 class DetermineInputObjectives(TSModel):

@@ -25,6 +25,15 @@ from doorbeen.api.routers import PUBLIC_ROUTES
 from doorbeen.core.config.execution_env import ExecutionEnv
 from fastapi.logger import logger as fastapi_logger
 
+# Set higher log levels for noisy libraries to suppress their verbose output.
+logging.getLogger("aiosqlite").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy").setLevel(logging.ERROR)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 API_PREFIX = "/api"
 AUTH_PREFIX = "/auth"
 API_VERSION_PREFIX = "/v1"

@@ -173,9 +173,9 @@ class EnrichInputNode(TSModel):
             else:
                 logging.warning("⚠️ [ENRICH_NODE] No database connection found")
             
-            # Use schema from state if available
+            # Use schema from context if available
             if state.table_schemas:
-                logging.info("✅ [ENRICH_NODE] Using cached table schemas from state")
+                logging.info("✅ [ENRICH_NODE] Using cached table schemas from context")
                 table_schemas = state.table_schemas
             else:
                 logging.info("🔍 [ENRICH_NODE] Loading table schemas from database")
@@ -282,7 +282,7 @@ class EnrichInputNode(TSModel):
             logging.error(f"❌ [ENRICH_NODE] Error type: {type(e).__name__}")
             logging.error(f"❌ [ENRICH_NODE] This may cause downstream failures")
             
-            # Return original state with error information
+            # Return original context with error information
             return {
                 "messages": [AIMessage(content=f"Enrichment failed: {str(e)}")],
                 "input": state.input,  # Keep original input

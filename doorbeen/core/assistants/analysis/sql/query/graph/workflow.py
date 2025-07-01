@@ -28,7 +28,7 @@ If there are any of the above mistakes, rewrite the query. If there are no mista
 You will call the appropriate tool to execute the query after running this check."""
 
 
-# Describe a tool to represent the end state
+# Describe a tool to represent the end context
 class SubmitFinalAnswer(TSModel):
     """Submit the final answer to the user based on the query results."""
 

@@ -11,12 +11,12 @@ import type {
 import { getAPIServerURL } from '~/composables/server'
 
 export const useThreadStorage = () => {
-    // Use Nuxt's useState for SSR-friendly shared state
+    // Use Nuxt's useState for SSR-friendly shared context
     const threads = useState<Thread[]>('threads', () => [])
     const isLoading = useState<boolean>('threadsLoading', () => false)
     const error = useState<string | null>('threadsError', () => null)
     
-    // Use the global current thread state
+    // Use the global current thread context
     const { currentThread, setCurrentThread, getCurrentThreadId, isCurrentThread } = useCurrentThread()
 
     // API Base URL

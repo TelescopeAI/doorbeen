@@ -18,8 +18,8 @@ const emit = defineEmits(['start-new-question']);
 
 const stream = computed(() => props.message?.stream || new StreamResponse(null))
 
-// Accordion control state - use array for multiple panels
-const allExpanded = ref(true); // Start with all expanded for better UX
+// Accordion control context - use array for multiple panels
+const allExpanded = ref(false);
 const openPanels = ref<string[]>([]); // Array of open panel values
 
 // Initialize accordion states when stream changes
@@ -58,6 +58,45 @@ const getStepTitle = (nodeName: string) => {
   else if(nodeName === 'qa_grade_node'){
     return 'Grading the quality of the question'
   }
+  // NEW: Supervisor-specific event titles
+  else if(nodeName === 'supervisor_node'){
+    return 'Multi-agent supervisor coordinating analysis'
+  }
+  else if(nodeName === 'supervisor_initialized'){
+    return 'Supervisor initialized - Multi-agent coordination starting'
+  }
+  else if(nodeName === 'agent_handoff'){
+    return 'Supervisor delegating task to specialized agent'
+  }
+  else if(nodeName === 'agent_completed'){
+    return 'Agent completed task - returning to supervisor'
+  }
+  else if(nodeName === 'agent_failed'){
+    return 'Agent encountered error - supervisor handling retry'
+  }
+  else if(nodeName === 'agent_retry'){
+    return 'Supervisor retrying failed agent with different strategy'
+  }
+  else if(nodeName === 'supervisor_completed'){
+    return 'Multi-agent coordination completed successfully'
+  }
+  // Agent-specific titles
+  else if(nodeName === 'data_analysis'){
+    return 'Data Analysis Agent exploring database structure'
+  }
+  else if(nodeName === 'query_generation'){
+    return 'Query Generation Agent creating SQL queries'
+  }
+  else if(nodeName === 'result_processing'){
+    return 'Result Processing Agent analyzing query results'
+  }
+  else if(nodeName === 'objective_evaluation'){
+    return 'Objective Evaluation Agent checking if goals are met'
+  }
+  else if(nodeName === 'finalization'){
+    return 'Finalization Agent preparing final response'
+  }
+  // Linear node titles
   else if(nodeName === 'enrich_input_node'){
     return 'Enriching the question with more context'
   }
@@ -144,7 +183,7 @@ const formatTimestamp = (timestamp: string) => {
     <Accordion type="multiple" v-model="openPanels" class="analysis-steps-accordion">
       <AccordionItem 
         v-for="(item, index) in stream.nodeOutputs" 
-        :key="item.id" 
+        :key="item.id || item.name + '-' + index" 
         :value="index.toString()"
       >
         <AccordionTrigger class="step-header">

@@ -23,7 +23,7 @@ class FinalizeAnswerNode(TSModel):
         if getattr(state, 'circuit_breaker_triggered', False):
             return await self._handle_circuit_breaker_response(state)
         
-        # Use schema from state instead of reloading
+        # Use schema from context instead of reloading
         selected_tables = state.selected_tables or connection.get_table_names(schema_name=connection.credentials.database)
         table_schemas_json = state.table_schemas.model_dump_json() if state.table_schemas else connection.get_schema().model_dump_json()
 

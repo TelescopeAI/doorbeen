@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any, Union
 
+import pytz
 from langchain_core.messages import AIMessage
 from pydantic import Field
 
@@ -14,7 +15,7 @@ class AgentEvent(TSModel):
     type: EventTypes
     name: str
     data: Any
-    occurred_at: datetime = Field(default_factory=datetime.utcnow)
+    occurred_at: datetime = Field(default_factory=lambda: datetime.now(pytz.UTC))
 
 
 class AgentEventGenerator(TSModel):
@@ -40,6 +41,17 @@ class AgentEventGenerator(TSModel):
         elif isinstance(self.chunk, StreamOutput):
             return EventTypes.STREAM_OUTPUT
         elif isinstance(self.chunk, NodeExecutionOutput):
+            # Check if this is an agent lifecycle event
+            if hasattr(self.chunk, 'name') and 'agent' in self.chunk.name:
+                event_data = self.chunk.value
+                if isinstance(event_data, dict) and event_data.get('event_type'):
+                    event_type = event_data.get('event_type')
+                    if event_type == EventTypes.AGENT_START:
+                        return EventTypes.AGENT_START
+                    elif event_type == EventTypes.AGENT_END:
+                        return EventTypes.AGENT_END
+                    elif event_type == EventTypes.AGENT_WORKING:
+                        return EventTypes.AGENT_WORKING
             return EventTypes.NODE_OUTPUT
 
 

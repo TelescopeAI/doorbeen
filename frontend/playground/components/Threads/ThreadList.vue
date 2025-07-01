@@ -36,7 +36,7 @@ const {
     formatThreadDate
 } = useThreadStorage()
 
-// Use the global current thread state
+// Use the global current thread context
 const { currentThread, setCurrentThread } = useCurrentThread()
 
 const isDeleteDialogOpen = ref(false)

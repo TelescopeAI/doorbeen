@@ -12,7 +12,7 @@ class ObserveSQLResultsNode(TSModel):
 
     async def __call__(self, state: SQLAssistantState, config: RunnableConfig):
         is_last_execution_failed = state.last_execution_failed is not None and state.last_execution_failed
-        assert not is_last_execution_failed, "Result should be present in the state"
+        assert not is_last_execution_failed, "Result should be present in the context"
         analyzer = QueryResultsAnalysis(handler=self.handler, results=state.execution_results[-1], state=state)
         report = await analyzer.analyse()
         result_message = AIMessage(

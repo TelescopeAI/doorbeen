@@ -29,7 +29,7 @@ exclude = [
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
-langchain = "0.3.22"
+langchain = "0.3.26"
 fastapi = {extras = ["all"], version = "0.115.12"}
 pydantic = "2.11.1"
 uvicorn = {extras = ["standard"], version = "^0.34.0"}
@@ -39,27 +39,30 @@ pymongo = "^4.6.3"
 secweb = "^1.9.1"
 openai = "1.69.0"
 httpx = "^0.28.1"
-langchain-community = "0.3.20"
-langchain-openai = "0.3.11"
-langchain-experimental = "0.3.4"
+langchain-community = "0.3.26"
+langchain-openai = "0.3.21"
+langchain-experimental = "0.3.1"
 sqlalchemy-bigquery = {extras = ["bqstorage"], version = "^1.13.0"}
 google-cloud-bigquery-storage = "^2.30.0"
 kaggle = "^1.6.14"
 pymysql = "^1.1.1"
 fastapi-cache2 = "^0.2.1"
-langgraph = "^0.3.18"
-langchain-anthropic = "^0.3.10"
-langchain-google-genai = "2.1.2"
-langchain-ollama = "0.3.0"
+langgraph = "0.5.0"
+langchain-anthropic = "0.3.16"
+langchain-google-genai = "2.1.5"
+langchain-ollama = "0.3.3"
 psycopg = {extras = ["binary", "pool"], version = "^3.2.3"}
 psycopg-pool = "^3.2.3"
-langgraph-checkpoint-postgres = "^2.0.1"
+langgraph-checkpoint-postgres = "2.0.21"
 clerk-backend-api = "^2.0.0"
 scalar-fastapi = "^1.0.3"
 deprecated = "^1.2.18"
 pytz = "^2024.1"
 alembic = "^1.16.2"
 aiosqlite = "^0.21.0"
+langgraph-supervisor = "0.0.27"
+pytest = "^8.4.1"
+pytest-asyncio = "^1.0.0"
 
 
 [[tool.poetry.source]]

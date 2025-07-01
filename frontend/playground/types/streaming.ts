@@ -47,11 +47,121 @@ export interface NodeExecutionData {
     execution_error?: string;
 }
 
+// EXTENDED: Agent-specific event types for multi-agent coordination
+export interface AgentExecutionData extends NodeExecutionData {
+    // Agent identification
+    agent_name?: string;
+    agent_role?: string;
+    agent_context?: string;
+    
+    // Supervisor coordination data
+    supervisor_decision?: {
+        decision_type: 'route' | 'evaluate' | 'terminate' | 'retry';
+        target_agent?: string;
+        reasoning: string;
+        confidence: number;
+        iteration: number;
+    };
+    
+    // Agent handoff information
+    handoff_info?: {
+        source_agent: string;
+        target_agent: string;
+        reason: string;
+        context: Record<string, any>;
+        timestamp: string;
+    };
+    
+    // Agent retry tracking
+    agent_retry_count?: number;
+    agent_max_retries?: number;
+    agent_retry_strategy?: string;
+    
+    // Enhanced objective tracking
+    objectives_status?: {
+        identified: string[];
+        completed: string[];
+        remaining: string[];
+        completion_confidence: number;
+        overall_status: 'complete' | 'partial' | 'incomplete';
+    };
+    
+    // Agent-specific progress
+    agent_progress?: {
+        agent_name: string;
+        status: 'working' | 'complete' | 'error' | 'handoff';
+        progress_percentage: number;
+        current_task?: string;
+    };
+}
+
+// All possible event types from the stream
+export type StreamEvent = 
+    | NodeExecutionOutput
+    | AgentCoordinationOutput
+    | AgentToolInvoke
+    | AgentStreamOutput
+    | AgentStart
+    | AgentEnd;
+
+// Type definition for a tool invocation event
+export type AgentToolInvoke = {
+    type: 'agent:tool:invoke';
+    name: string;
+    data: {
+        tool_call_id: string;
+        [key: string]: any; // Langchain tool_call format
+    };
+    occurred_at: string;
+};
+
+// Type definition for a streaming text output event
+export type AgentStreamOutput = {
+    type: 'agent:stream:output';
+    name: string;
+    data: {
+        content: string;
+    };
+    occurred_at: string;
+};
+
+// Type definition for an agent start event
+export type AgentStart = {
+    type: 'agent:start';
+    name: string;
+    data: {
+        description: string;
+        [key: string]: any;
+    };
+    occurred_at: string;
+};
+
+// Type definition for an agent end event
+export type AgentEnd = {
+    type: 'agent:end';
+    name: string;
+    data: {
+        description: string;
+        [key: string]: any;
+    };
+    occurred_at: string;
+};
+
 export type NodeExecutionOutput = {
     type: string;
     name: string;
-    data: NodeExecutionData | string; // Support both structured and simple data
+    data: NodeExecutionData | AgentExecutionData | Record<string, any> | string; // Support a wide range of data
     occurred_at: string;
+};
+
+// NEW: Agent coordination event types
+export type AgentCoordinationOutput = {
+    type: 'assistant:agent:output' | 'supervisor:decision' | 'agent:handoff';
+    name: string;
+    data: AgentExecutionData;
+    occurred_at: string;
+    // Backward compatibility mapping
+    node_equivalent?: string;
 };
 
 export class ToolCallInvoke  {
@@ -82,9 +192,23 @@ export class StreamOutput {
     }
 }
 
-// Enhanced StreamResponse with better node tracking
+// ENHANCED: StreamResponse with agent coordination support
 export class StreamResponse {
     nodeOutputs: Array<NodeExecutionOutput> = [];
+    
+    // NEW: Agent coordination tracking
+    agentOutputs: Array<AgentCoordinationOutput> = [];
+    supervisorDecisions: Array<any> = [];
+    agentHandoffs: Array<any> = [];
+    
+    // NEW: Agent coordination status
+    currentAgent?: string;
+    agentProgress?: {
+        agent_name: string;
+        progress_percentage: number;
+        status: 'working' | 'complete' | 'error' | 'handoff';
+        familiar_node_name: string;
+    };
     
     // Enhanced status tracking
     currentPhase?: string;
@@ -109,6 +233,14 @@ export class StreamResponse {
     constructor(response: Object | null) {
         if (response) {
             this.nodeOutputs = response.nodeOutputs as Array<NodeExecutionOutput> || [];
+            
+            // NEW: Initialize agent coordination data
+            this.agentOutputs = response.agentOutputs as Array<AgentCoordinationOutput> || [];
+            this.supervisorDecisions = response.supervisorDecisions as Array<any> || [];
+            this.agentHandoffs = response.agentHandoffs as Array<any> || [];
+            this.currentAgent = response.currentAgent as string;
+            this.agentProgress = response.agentProgress as any;
+            
             // Initialize enhanced status from response if available
             if (response.explorationStatus) {
                 this.explorationStatus = response.explorationStatus as any;
@@ -122,6 +254,9 @@ export class StreamResponse {
         }
         else {
             this.nodeOutputs = [];
+            this.agentOutputs = [];
+            this.supervisorDecisions = [];
+            this.agentHandoffs = [];
         }
     }
     
@@ -146,6 +281,35 @@ export class StreamResponse {
     
     getAlternatives(): string[] {
         return this.resultAnalysis?.alternatives || [];
+    }
+    
+    // NEW: Agent coordination helper methods
+    getCurrentAgent(): string | undefined {
+        return this.currentAgent;
+    }
+    
+    getAgentProgress(): any {
+        return this.agentProgress;
+    }
+    
+    getSupervisorDecisions(): Array<any> {
+        return this.supervisorDecisions;
+    }
+    
+    getAgentHandoffs(): Array<any> {
+        return this.agentHandoffs;
+    }
+    
+    // NEW: Backward compatibility mapping
+    getFamiliarNodeName(agentName: string): string {
+        const agentToNodeMapping = {
+            'data_analysis_agent': 'data_exploration_node',
+            'query_generation_agent': 'generate_sql_query_node', 
+            'result_processing_agent': 'process_results_node',
+            'objective_evaluation_agent': 'evaluate_objectives_node',
+            'finalization_agent': 'final_answer_node'
+        };
+        return agentToNodeMapping[agentName] || agentName;
     }
 }
 

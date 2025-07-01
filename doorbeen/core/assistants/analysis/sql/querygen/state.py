@@ -1,7 +1,7 @@
 """
 State management for Query Generation Agent
 
-This module defines the state models used by the Query Generation Agent
+This module defines the context models used by the Query Generation Agent
 to track the generation process, validation steps, and error handling.
 """
 
@@ -37,7 +37,7 @@ class QueryGenerationState(TSModel):
     current_attempt: int = Field(default=0, description="Current attempt number")
     max_attempts: int = Field(default=3, description="Maximum generation attempts allowed")
     
-    # Validation state
+    # Validation context
     last_validation: Optional[QueryValidationResult] = Field(
         default=None, 
         description="Result of last validation attempt"

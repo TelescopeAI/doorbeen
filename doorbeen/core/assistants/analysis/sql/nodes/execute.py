@@ -50,7 +50,7 @@ class ExecuteSQLQueryNode(TSModel):
             }
         
         configuration = config.get("configurable", {})
-        assert state.generated_query is not None, "Generated query should be present in the state"
+        assert state.generated_query is not None, "Generated query should be present in the context"
         connection: CommonSQLClient = configuration.get("connection", None)
         generated_query = state.generated_query
         
@@ -65,19 +65,19 @@ class ExecuteSQLQueryNode(TSModel):
             logging.info("✅ [EXECUTE_NODE] Query executed successfully")
             logging.info(f"🔍 [EXECUTE_NODE] Result count: {len(result) if result else 0}")
             
-            # SUCCESS: Reset circuit breaker state
+            # SUCCESS: Reset circuit breaker context
             state.retry_count = 0
             state.circuit_breaker_triggered = False
             state.execution_error_history.clear()
             state.last_execution_error = None
             
-            logging.info("✅ [EXECUTE_NODE] Circuit breaker state reset after successful execution")
+            logging.info("✅ [EXECUTE_NODE] Circuit breaker context reset after successful execution")
             
         except Exception as e:
             logging.error(f"❌ [EXECUTE_NODE] Query execution failed: {str(e)}")
             logging.error(f"❌ [EXECUTE_NODE] Error type: {type(e).__name__}")
             
-            # Handle failed transaction state first
+            # Handle failed transaction context first
             error_str = str(e).lower()
             if "transaction is aborted" in error_str or "commands ignored until end of transaction" in error_str:
                 logging.info("🔄 [EXECUTE_NODE] Attempting transaction rollback...")
@@ -91,7 +91,7 @@ class ExecuteSQLQueryNode(TSModel):
                     
                     logging.info("✅ [EXECUTE_NODE] Query succeeded after rollback")
                     
-                    # SUCCESS after rollback: Reset circuit breaker state
+                    # SUCCESS after rollback: Reset circuit breaker context
                     state.retry_count = 0
                     state.circuit_breaker_triggered = False
                     state.execution_error_history.clear()
@@ -106,7 +106,7 @@ class ExecuteSQLQueryNode(TSModel):
             if 'output' not in locals():
                 logging.warning("⚠️ [EXECUTE_NODE] Handling execution failure")
                 
-                # FAILURE: Update circuit breaker state
+                # FAILURE: Update circuit breaker context
                 state.retry_count += 1
                 state.last_execution_error = str(e)
                 state.execution_error_history.append(str(e))
@@ -214,7 +214,7 @@ class AnalyseExecutionFailure(TSModel):
         logging.info(f"🔍 [FAILURE_ANALYSIS] Analyzing failure: {error}")
         logging.info(f"🔍 [FAILURE_ANALYSIS] Failed query: {failed_execution.query}")
         
-        # Use schema from state instead of reloading
+        # Use schema from context instead of reloading
         selected_tables = state.selected_tables or connection.get_table_names(schema_name=connection.credentials.database)
         table_schemas = state.table_schemas or connection.get_schema()
         

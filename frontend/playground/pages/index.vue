@@ -11,6 +11,7 @@ import { parseDBConfig } from "~/composables/parsing";
 import { getAPIServerURL } from "~/composables/server";
 import Card from 'primevue/card';
 import {SSEService} from "~/core/streaming/sse";
+import SubmitButton from '~/components/ui/submit-button/SubmitButton.vue';
 import { useSession } from '@clerk/vue'
 import { useThreadStorage } from '~/composables/useThreadStorage'
 import type { Thread } from '~/types/threads'
@@ -125,10 +126,10 @@ const update_message_stream = async (message: ConversationMessage) => {
   console.log("Updated messages array:", messages);
 };
 
-// Create a ref to hold the cumulative stream state
+// Create a ref to hold the cumulative stream context
 const cumulativeStreamResponse = ref<StreamResponse>(new StreamResponse(null));
 
-// Function to reset the stream state
+// Function to reset the stream context
 const resetStreamState = () => {
   cumulativeStreamResponse.value = new StreamResponse(null);
 };
@@ -244,7 +245,7 @@ async function ask_question(retry: boolean = false) {
     return;
   }
 
-  // Show loading state
+  // Show loading context
   isAgentThinking.value = true;
 
   // Create a new thread for this conversation and redirect to chat route
@@ -282,6 +283,18 @@ async function ask_question(retry: boolean = false) {
     isAgentThinking.value = false;
   }
 }
+
+// Function to abort the current processing
+function abort_processing() {
+  console.log('🛑 User requested to abort processing');
+  
+  // For the index page, we just stop the thinking context
+  // since we're immediately redirecting to chat route
+  isAgentThinking.value = false;
+  
+  toast.info('Analysis Stopped', { description: 'Processing has been cancelled' });
+}
+
 const { session } = useSession()
 
 </script>
@@ -303,7 +316,13 @@ const { session } = useSession()
             <div class="flex gap-dense min-h-12 p-2 justify-center items-center rounded-xl">
               <TextEditor :initial_content="current_question" @contentUpdated="update_question"
                           @contentReady="ask_question" class="h-full"/>
-              <ButtonIcones icon="solar:square-arrow-up-bold" size="36" class="h-fit btn-dense" @click="ask_question"/>
+              <SubmitButton 
+                :is-processing="isAgentThinking"
+                size="lg"
+                class="h-fit btn-dense"
+                @click="ask_question"
+                @abort="abort_processing"
+              />
             </div>
           </div>
         </template>

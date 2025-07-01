@@ -46,7 +46,7 @@ class GenerateSQLQueryNode(TSModel):
             table_schemas = state.table_schemas.model_dump() if state.table_schemas else connection.get_schema().model_dump()
             exploration_context = getattr(state, 'exploration_findings', None)
             
-            # Build objective and reasoning from state
+            # Build objective and reasoning from context
             objective = self._build_objective_from_state(state)
             reasoning = self._build_reasoning_from_state(state)
             
@@ -126,14 +126,14 @@ class GenerateSQLQueryNode(TSModel):
             return self._create_error_response(f"Query generation failed: {str(e)}", state)
     
     def _build_objective_from_state(self, state: SQLAssistantState) -> str:
-        """Build objective from current state"""
+        """Build objective from current context"""
         if state.interpretation:
             return state.interpretation.objective
         else:
             return f"Generate SQL query to answer: {state.input}"
     
     def _build_reasoning_from_state(self, state: SQLAssistantState) -> str:
-        """Build reasoning from current state"""
+        """Build reasoning from current context"""
         reasoning_parts = []
         
         if state.interpretation:
@@ -151,7 +151,7 @@ class GenerateSQLQueryNode(TSModel):
         return ". ".join(reasoning_parts)
     
     def _get_retry_strategy_from_state(self, state: SQLAssistantState) -> str:
-        """Extract retry strategy from state if available"""
+        """Extract retry strategy from context if available"""
         if hasattr(state, 'objective_retry_strategies') and state.objective_retry_strategies:
             return state.objective_retry_strategies[-1]  # Get the latest strategy
         return None

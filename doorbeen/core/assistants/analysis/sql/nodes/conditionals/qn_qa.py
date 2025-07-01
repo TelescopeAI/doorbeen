@@ -27,9 +27,9 @@ class InputGradingNode(TSModel):
         else:
             logging.warning("⚠️ [QA_GRADE_NODE] No database connection found")
         
-        # Use schema from state if available, otherwise load from connection
+        # Use schema from context if available, otherwise load from connection
         if state.table_schemas:
-            logging.info("🔍 [QA_GRADE_NODE] Using cached table schemas from state")
+            logging.info("🔍 [QA_GRADE_NODE] Using cached table schemas from context")
             table_schemas = state.table_schemas
         else:
             logging.info("🔍 [QA_GRADE_NODE] Loading table schemas from database")

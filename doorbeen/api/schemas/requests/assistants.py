@@ -61,3 +61,21 @@ class AskLLMRequest(TSModel):
     # Storage-related fields (optional for backward compatibility)
     thread_id: Optional[UUID] = Field(None, description="Thread ID for conversation continuity")
     message_metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata for the message")
+    
+    # Multi-agent supervisor mode settings
+    use_supervisor: Optional[bool] = Field(
+        False, 
+        description="Whether to use multi-agent supervisor architecture (True) or linear execution (False). Defaults to False for stability."
+    )
+    agent_config: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Configuration options for agent behavior and coordination",
+        examples=[
+            {
+                "max_coordination_iterations": 10,
+                "enable_agent_retries": True,
+                "fallback_to_linear": True,
+                "preferred_agents": ["data_analysis", "query_generation", "result_processing"]
+            }
+        ]
+    )

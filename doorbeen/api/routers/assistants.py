@@ -1,5 +1,6 @@
 import logging
 import traceback
+import json
 from typing import Annotated
 
 import httpx
@@ -62,69 +63,56 @@ async def authed_request_state(
 
 
 # Create an instance of the service
+assistant_service = AssistantService()
+
+
+async def event_streamer(request: AskLLMRequest):
+    """
+    Generator function that streams events from the assistant service.
+    """
+    # This unified method will handle both linear and supervisor graphs
+    # and will stream events in real-time.
+    try:
+        # We must 'await' the service method to get the async generator
+        async for event in await assistant_service.process_llm_request_with_storage(request, stream=True):
+            logging.info(f"[ASSISTANTS_STREAM] Streaming event: {event}")
+            # Parse the event to check its type
+            try:
+                if isinstance(event, str):
+                    parsed_event = json.loads(event)
+                    if parsed_event.get('type') == 'agent:stream:output':
+                        logging.info(f"[ASSISTANTS_STREAM] Specifically streaming agent:stream:output: {parsed_event}")
+            except json.JSONDecodeError:
+                pass
+            yield f"data: {event}\n\n"
+    except Exception as e:
+        logging.error(f"[ASSISTANTS_STREAM] Error during event streaming: {e}")
+        logging.error(f"[ASSISTANTS_STREAM] Traceback: {traceback.format_exc()}")
+        error_event = {
+            "event": "error",
+            "data": {
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+        }
+        yield f"data: {json.dumps(error_event, default=str)}\n\n"
+
 
 # Then update the route to use the service
 @AssistantsRouter.post("/assistants", tags=["Assistants"], operation_id="data_analysis")
 async def ask(request: AskLLMRequest = Body()):
     try:
-        logging.info(f"[ASSISTANTS] Starting new request processing")
-        logging.info(f"[ASSISTANTS] Request data: {request.model_dump()}")
+        logging.info(f"[ASSISTANTS] Starting new request processing for thread: {request.thread_id}")
         
-        # Convert to the old request format
-        request_data = AskLLMRequest(**request.model_dump())
-        logging.info(f"[ASSISTANTS] Creating AssistantService instance")
-        assistant_service = AssistantService()
-        
-        # Determine if we should stream based on the request
-        stream = getattr(request, "stream", True)
-        logging.info(f"[ASSISTANTS] Stream mode: {stream}")
-        
-        # Check if this is a storage-enabled request (has thread_id or message_metadata)
-        use_storage = request.thread_id is not None or request.message_metadata is not None
-        
-        if use_storage:
-            logging.info(f"[ASSISTANTS] Using storage-enabled processing (thread_id: {request.thread_id})")
-            # Use the new storage-enabled method
-            result = await assistant_service.process_llm_request_with_storage(
-                request_data, 
-                thread_id=request.thread_id, 
-                stream=stream
-            )
-        else:
-            logging.info(f"[ASSISTANTS] Using legacy processing (backward compatibility)")
-            # Use the legacy method for backward compatibility
-            result = await assistant_service.process_llm_request(request_data, stream=stream)
-        
-        if stream:
-            logging.info(f"[ASSISTANTS] Returning StreamingResponse")
-            return StreamingResponse(
-                result,
-                media_type="application/x-ndjson"
-            )
-        else:
-            logging.info(f"[ASSISTANTS] Returning JSONResponse")
-            return JSONResponse(content=result)
-            
-    except httpx.ReadTimeout as e:
-        logging.error(f"[ASSISTANTS] Timeout error: {str(e)}")
-        logging.error(f"[ASSISTANTS] Timeout traceback: {traceback.format_exc()}")
-        error_message = {
-            "error": "Request timed out. The operation took longer than expected to complete.",
-            "status": "timeout"
-        }
-        return JSONResponse(
-            content=error_message,
-            status_code=504  # Gateway Timeout
+        # All requests are now treated as streaming via SSE
+        return StreamingResponse(
+            event_streamer(request),
+            media_type="text/event-stream"
         )
+            
     except Exception as e:
-        logging.error(f"[ASSISTANTS] Unexpected error: {str(e)}")
-        logging.error(f"[ASSISTANTS] Error type: {type(e).__name__}")
+        logging.error(f"[ASSISTANTS] Unexpected error in ask endpoint: {str(e)}")
         logging.error(f"[ASSISTANTS] Full traceback: {traceback.format_exc()}")
-        
-        # Also log to stdout for immediate visibility
-        print(f"[ASSISTANTS] Unexpected error: {str(e)}")
-        print(f"[ASSISTANTS] Error type: {type(e).__name__}")
-        print(f"[ASSISTANTS] Full traceback: {traceback.format_exc()}")
         
         error_message = {
             "error": str(e),

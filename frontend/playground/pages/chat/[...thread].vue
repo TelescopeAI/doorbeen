@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { useToast } from "primevue/usetoast";
 import type { MODEL_CONFIG } from "~/types/models";
 import { type ConversationMessage, ConversationState } from "~/types/conversations";
 import { useGenerateUUID4 } from "~/composables/uuid";
 import { StreamResponse } from "~/types/streaming";
-import type { NodeExecutionOutput, NodeExecutionData } from "~/types/streaming";
+import type { NodeExecutionOutput, NodeExecutionData, AgentCoordinationOutput } from "~/types/streaming";
 
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, nextTick, triggerRef } from 'vue'
 import { parseDBConfig } from "~/composables/parsing";
 import { getAPIServerURL } from "~/composables/server";
 import Card from 'primevue/card';
@@ -18,6 +17,7 @@ import { toast } from 'vue-sonner'
 import { MessageSquare, Loader2 } from 'lucide-vue-next'
 import { Badge } from '~/components/ui/badge'
 import ConversationSkeleton from '~/components/Conversations/ConversationSkeleton.vue'
+import SubmitButton from '~/components/ui/submit-button/SubmitButton.vue'
 
 // Get thread ID from route params
 const route = useRoute()
@@ -50,13 +50,13 @@ const {
   formatThreadDate 
 } = useThreadStorage();
 
-// Use the global current thread state
+// Use the global current thread context
 const { currentThread, setCurrentThread } = useCurrentThread();
 
 // Copy all the existing conversation logic from index.vue
 let current_question = ref('');
 let last_question = ref('');
-const streamMessages = ref([])
+const streamMessages = ref<any[]>([])
 
 const update_question = (new_question: string) => {
   console.log('📝 Text input updated:', new_question);
@@ -111,10 +111,10 @@ const update_message_stream = async (message: ConversationMessage) => {
   console.log("Updated messages array:", messages);
 };
 
-// Create a ref to hold the cumulative stream state
+// Create a ref to hold the cumulative stream context
 const cumulativeStreamResponse = ref<StreamResponse>(new StreamResponse(null));
 
-// Function to reset the stream state
+// Function to reset the stream context
 const resetStreamState = () => {
   cumulativeStreamResponse.value = new StreamResponse(null);
 };
@@ -165,17 +165,23 @@ const processNodeSpecificData = (nodeOutput: NodeExecutionOutput) => {
 };
 
 // Watch for new stream messages with enhanced processing
-watch(() => streamMessages, (newMessages) => {
-  const newVal = newMessages.value;
-  if (newVal.length > 0) {
+watch(streamMessages, (newMessages) => {
+  console.log('🎯 Watch function triggered! Array length:', newMessages.length);
+  const newVal = newMessages;
+  
+  if (newVal && newVal.length > 0) {
     const latestMessage = newVal[newVal.length - 1];
+    console.log('🎯 Latest message type:', latestMessage?.type);
+    
     try {
       if (typeof latestMessage === 'string' && latestMessage === 'pong') {
         return;
       }
 
       const message = latestMessage as any as NodeExecutionOutput;
+      console.log('🔄 Frontend received event:', message.type, message);
 
+      // Handle different event types
       if (message.type === 'assistant:node:output') {
         const nodeOutput: NodeExecutionOutput = {
           type: message.type,
@@ -195,13 +201,234 @@ watch(() => streamMessages, (newMessages) => {
 
         // Update the current message's stream
         if (current_message.value) {
-          current_message.value.stream = cumulativeStreamResponse.value;
+          // Ensure the stream and nodeOutputs array exist
+          if (!current_message.value.stream) {
+            current_message.value.stream = new StreamResponse(null);
+          }
+          if (!current_message.value.stream.nodeOutputs) {
+            current_message.value.stream.nodeOutputs = [];
+          }
+          
+          // Add the new node output directly to the reactive array
+          current_message.value.stream.nodeOutputs.push(nodeOutput);
+          
+          // Also update other stream properties from cumulative response
+          Object.assign(current_message.value.stream, {
+            agentOutputs: cumulativeStreamResponse.value.agentOutputs,
+            supervisorDecisions: cumulativeStreamResponse.value.supervisorDecisions,
+            agentHandoffs: cumulativeStreamResponse.value.agentHandoffs,
+            currentAgent: cumulativeStreamResponse.value.currentAgent,
+            agentProgress: cumulativeStreamResponse.value.agentProgress,
+            explorationStatus: cumulativeStreamResponse.value.explorationStatus,
+            circuitBreakerStatus: cumulativeStreamResponse.value.circuitBreakerStatus,
+            resultAnalysis: cumulativeStreamResponse.value.resultAnalysis
+          });
+          
+          update_message_stream(current_message.value);
+        }
+      }
+      // Handle agent coordination events
+      else if (message.type === 'assistant:agent:output') {
+        const agentOutput: AgentCoordinationOutput = {
+          type: message.type,
+          name: message.name,
+          data: message.data,
+          occurred_at: message.occurred_at,
+          node_equivalent: message.node_equivalent
+        };
+
+        // Add to agent outputs in stream response
+        if (!cumulativeStreamResponse.value.agentOutputs) {
+          cumulativeStreamResponse.value.agentOutputs = [];
+        }
+        cumulativeStreamResponse.value.agentOutputs.push(agentOutput);
+
+        // Update agent progress if available
+        if (message.data?.agent_progress) {
+          cumulativeStreamResponse.value.agentProgress = message.data.agent_progress;
+        }
+
+        // Update current agent if available
+        if (message.data?.agent_name) {
+          cumulativeStreamResponse.value.currentAgent = message.data.agent_name;
+        }
+
+        // Update objectives status if available
+        if (message.data?.objectives_status) {
+          cumulativeStreamResponse.value.resultAnalysis = {
+            objectivesMet: message.data.objectives_status.overall_status === 'complete',
+            insights: [],
+            alternatives: [],
+            nextSteps: ''
+          };
+        }
+
+        // Convert agent output to familiar node output for backward compatibility
+        const compatibleNodeOutput: NodeExecutionOutput = {
+          type: 'assistant:node:output',
+          name: agentOutput.node_equivalent || cumulativeStreamResponse.value.getFamiliarNodeName(message.data?.agent_name || message.name),
+          data: message.data,
+          occurred_at: message.occurred_at
+        };
+
+        if (!cumulativeStreamResponse.value.nodeOutputs) {
+          cumulativeStreamResponse.value.nodeOutputs = [];
+        }
+        cumulativeStreamResponse.value.nodeOutputs.push(compatibleNodeOutput);
+
+        // Process as node data for existing UI components
+        processNodeSpecificData(compatibleNodeOutput);
+
+        // Update the current message's stream
+        if (current_message.value) {
+          // Create a new stream object to trigger reactivity
+          current_message.value.stream = { ...cumulativeStreamResponse.value };
+          
+          // Force reactivity update
+          triggerRef(current_message);
+          
+          update_message_stream(current_message.value);
+        }
+      }
+      // Handle supervisor decisions
+      else if (message.type === 'supervisor:decision') {
+        if (!cumulativeStreamResponse.value.supervisorDecisions) {
+          cumulativeStreamResponse.value.supervisorDecisions = [];
+        }
+        cumulativeStreamResponse.value.supervisorDecisions.push(message.data);
+
+        // Update the current message's stream
+        if (current_message.value) {
+          // Create a new stream object to trigger reactivity
+          current_message.value.stream = { ...cumulativeStreamResponse.value };
+          
+          // Force reactivity update
+          triggerRef(current_message);
+          
+          update_message_stream(current_message.value);
+        }
+      }
+      // Handle agent handoffs
+      else if (message.type === 'agent:handoff') {
+        if (!cumulativeStreamResponse.value.agentHandoffs) {
+          cumulativeStreamResponse.value.agentHandoffs = [];
+        }
+        cumulativeStreamResponse.value.agentHandoffs.push(message.data);
+
+        // Update the current message's stream
+        if (current_message.value) {
+          // Create a new stream object to trigger reactivity
+          current_message.value.stream = { ...cumulativeStreamResponse.value };
+          
+          // Force reactivity update
+          triggerRef(current_message);
+          
+          update_message_stream(current_message.value);
+        }
+      }
+      // Handle thread info events (these are informational)
+      else if (message.type === 'thread_info') {
+        console.log('📄 Thread info received:', message);
+        // Just log these, no need to update UI
+      }
+      // Handle agent tool invocation
+      else if (message.type === 'agent:tool:invoke') {
+        // Treat as a node output for display purposes
+        const nodeOutput: NodeExecutionOutput = {
+          type: 'assistant:node:output',
+          name: message.name, // Tool name
+          data: message.data, // Tool call data
+          occurred_at: message.occurred_at
+        };
+
+        if (!cumulativeStreamResponse.value.nodeOutputs) {
+          cumulativeStreamResponse.value.nodeOutputs = [];
+        }
+        cumulativeStreamResponse.value.nodeOutputs.push(nodeOutput);
+        processNodeSpecificData(nodeOutput);
+
+        if (current_message.value) {
+          if (!current_message.value.stream) {
+            current_message.value.stream = new StreamResponse(null);
+          }
+          if (!current_message.value.stream.nodeOutputs) {
+            current_message.value.stream.nodeOutputs = [];
+          }
+          current_message.value.stream.nodeOutputs.push(nodeOutput);
+          update_message_stream(current_message.value);
+        }
+      }
+      // Handle agent text streaming
+      else if (message.type === 'agent:stream:output') {
+        console.log('🔄 Processing agent:stream:output event:', message);
+        
+        // Create a node output for the analysis steps section
+        const nodeOutput: NodeExecutionOutput = {
+          type: 'assistant:node:output',
+          name: message.name, // Agent name (e.g., QueryGenerator, DataAnalyst)
+          data: message.data, // The content data
+          occurred_at: message.occurred_at
+        };
+
+        if (!cumulativeStreamResponse.value.nodeOutputs) {
+          cumulativeStreamResponse.value.nodeOutputs = [];
+        }
+        cumulativeStreamResponse.value.nodeOutputs.push(nodeOutput);
+        processNodeSpecificData(nodeOutput);
+
+        if (current_message.value) {
+          // For the chat message content, format the JSON nicely if it's JSON
+          let displayContent = message.data.content;
+          try {
+            const parsedContent = JSON.parse(message.data.content);
+            // If it's a valid JSON object, format it nicely
+            displayContent = JSON.stringify(parsedContent, null, 2);
+          } catch (e) {
+            // If it's not JSON, use as-is
+            displayContent = message.data.content;
+          }
+          
+          if (typeof current_message.value.content !== 'string') {
+            current_message.value.content = '';
+          }
+          // Append formatted content to the current message
+          current_message.value.content += displayContent + '\n\n';
+          console.log('📝 Updated message content:', current_message.value.content);
+          
+          // Also update the stream with the node output
+          if (!current_message.value.stream) {
+            current_message.value.stream = new StreamResponse(null);
+          }
+          current_message.value.stream = { ...cumulativeStreamResponse.value };
+          
           update_message_stream(current_message.value);
         } else {
-          console.error('current_message.value is null');
+          console.warn('⚠️ No current_message.value available for agent:stream:output');
         }
-      } else {
-        console.error('Unknown message type:', message.type);
+      }
+      // Handle agent lifecycle events
+      else if (message.type === 'agent:start' || message.type === 'agent:end') {
+        if (!cumulativeStreamResponse.value.agentProgress) {
+          cumulativeStreamResponse.value.agentProgress = [];
+        }
+        cumulativeStreamResponse.value.agentProgress.push({
+          agent_name: message.name,
+          status: message.type === 'agent:start' ? 'starting' : 'finished',
+          description: message.data.description,
+        });
+        if (message.type === 'agent:start') {
+          cumulativeStreamResponse.value.currentAgent = message.name;
+        }
+        if (current_message.value) {
+          current_message.value.stream = { ...cumulativeStreamResponse.value };
+          triggerRef(current_message);
+          update_message_stream(current_message.value);
+        }
+      }
+      // Handle unknown event types
+      else {
+        console.warn('Unknown message type:', message.type, 'Full message:', message);
+        // Don't treat unknown types as errors anymore, just log them
       }
     } catch (error) {
       console.error('Error processing message:', error, 'Raw message:', latestMessage);
@@ -234,7 +461,7 @@ async function ask_question(retry: boolean = false) {
     return;
   }
 
-  // Reset the stream state before starting a new question or retry
+  // Reset the stream context before starting a new question or retry
   resetStreamState();
 
   // If we don't have a current thread but we're in a chat route, create one
@@ -313,23 +540,26 @@ async function ask_question(retry: boolean = false) {
       model: model_params,
       connection: parseDBConfig(conn_details),
       stream: true,
+      use_supervisor: currentAnalysisMode.value === 'supervisor',
       ...(currentThread.value && { thread_id: currentThread.value.id }),
       message_metadata: {
         source: 'conversation_ui',
         timestamp: new Date().toISOString(),
+        analysis_mode: currentAnalysisMode.value,
         ...(currentThread.value && { thread_title: currentThread.value.metadata?.title })
       }
     };
 
-    console.log('🚀 Setting up SSE connection with payload:', requestPayload);
 
     sseService.value = new SSEService(`${getAPIServerURL()}/api/v1/assistants`, user_auth_token, {
       body: requestPayload
     });
 
     sseService.value.onMessage((sse_event) => {
-      console.log('📨 Received SSE data:', sse_event);
-      streamMessages.value.push(sse_event);
+      console.log('📨 Pushing event to streamMessages:', sse_event.type, sse_event);
+      // Instead of pushing to the array, create a new array to trigger reactivity
+      streamMessages.value = [...streamMessages.value, sse_event];
+      console.log('📨 streamMessages length now:', streamMessages.value.length);
     });
 
     await sseService.value.connect();
@@ -348,6 +578,39 @@ async function ask_question(retry: boolean = false) {
     toast.error('Connection Error', { description: error?.message || 'Failed to connect to server' });
     isAgentThinking.value = false;
   }
+}
+
+// Function to abort the current processing
+function abort_processing() {
+  console.log('🛑 User requested to abort processing');
+  
+  // Disconnect the SSE service - this will abort the underlying fetch request
+  if (sseService.value) {
+    console.log('🧹 Disconnecting SSE service');
+    sseService.value.disconnect();
+    sseService.value = null;
+  }
+  
+  // Reset the thinking context immediately
+  isAgentThinking.value = false;
+  
+  // Update the current message context to show it was cancelled
+  if (current_message.value) {
+    const message = current_message.value;
+    message.state = ConversationState.ERROR;
+    
+    if (message.attempts && message.attempts.length > 0) {
+      const currentAttempt = message.attempts[message.attempts.length - 1];
+      currentAttempt.result = ConversationState.ERROR;
+      currentAttempt.response = 'Analysis was cancelled by user';
+    }
+    
+    message.error = 'Analysis was cancelled by user';
+    // Don't await this since we want immediate feedback
+    update_message_stream(message);
+  }
+  
+  toast.info('Analysis Stopped', { description: 'Processing has been cancelled' });
 }
 
 // Initialize thread on mount
@@ -380,6 +643,9 @@ onMounted(async () => {
       console.error('Error parsing stored model config:', error)
     }
   }
+
+  // Load analysis mode configuration
+  loadAnalysisMode()
 
   // Initialize thread management only if we don't have a specific thread ID from URL
   if (!threadId) {
@@ -600,7 +866,31 @@ onMounted(async () => {
   }
 })
 
+const handleStartNewQuestion = (question: string) => {
+  console.log('Chat page received start-new-question:', question);
+  current_question.value = question;
+  ask_question();
+};
+
+// Analysis mode handling functions
+const handleModeChange = (mode: 'linear' | 'supervisor') => {
+  currentAnalysisMode.value = mode;
+  console.log('Analysis mode changed to:', mode);
+};
+
+const loadAnalysisMode = () => {
+  const storedMode = localStorage.getItem('analysis-mode');
+  if (storedMode && (storedMode === 'linear' || storedMode === 'supervisor')) {
+    currentAnalysisMode.value = storedMode as 'linear' | 'supervisor';
+  } else {
+    currentAnalysisMode.value = 'linear'; // Default to linear
+  }
+};
+
 const { session } = useSession()
+
+// Analysis mode state
+const currentAnalysisMode = ref<'linear' | 'supervisor'>('linear');
 </script>
 
 <template>
@@ -645,15 +935,24 @@ const { session } = useSession()
             <!-- Loaded Content -->
             <div v-else>
               <ConversationsContainer :conversations="messages" :isThinking="isAgentThinking"
-                                      @retry="ask_question(true)"/>
+                                      :currentMessage="current_message"
+                                      @retry="ask_question(true)"
+                                      @start-new-question="handleStartNewQuestion"
+                                      @mode-changed="handleModeChange"/>
             </div>
             
             <!-- Input Area - Always Show -->
             <div class="flex gap-dense min-h-12 p-2 justify-center items-center rounded-xl">
               <TextEditor :initial_content="current_question" @contentUpdated="update_question"
                           @contentReady="ask_question" class="h-full" :disabled="isLoadingThread"/>
-              <ButtonIcones icon="solar:square-arrow-up-bold" size="36" class="h-fit btn-dense" 
-                           @click="ask_question" :disabled="isLoadingThread"/>
+              <SubmitButton 
+                :is-processing="isAgentThinking"
+                :disabled="isLoadingThread"
+                size="lg"
+                class="h-fit btn-dense"
+                @click="ask_question"
+                @abort="abort_processing"
+              />
             </div>
           </div>
         </template>

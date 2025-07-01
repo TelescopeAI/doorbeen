@@ -82,12 +82,23 @@ export class SSEService extends StreamingService {
                 for (const line of lines) {
                     if (line.trim()) {
                         try {
-                            const jsonEvent = JSON.parse(line);
+                            // Trim the line and remove the 'data: ' prefix if it exists
+                            const trimmedLine = line.trim();
+                            console.log('📡 SSE raw line:', trimmedLine);
+                            const dataString = trimmedLine.startsWith('data: ') ? trimmedLine.substring(6) : trimmedLine;
+                            console.log('📡 SSE parsed data string:', dataString);
+                            const parsedData = JSON.parse(dataString);
+                            console.log('📡 SSE parsed event:', parsedData.type, parsedData);
+                            console.log('📡 SSE messageCallback exists:', !!this.messageCallback);
                             if (this.messageCallback) {
-                                this.messageCallback(jsonEvent);
+                                console.log('📡 SSE calling messageCallback for:', parsedData.type);
+                                this.messageCallback(parsedData);
+                                console.log('📡 SSE messageCallback called successfully');
+                            } else {
+                                console.error('📡 SSE messageCallback is null!');
                             }
                         } catch (error) {
-                            console.error('Error parsing JSON:', error);
+                            console.error('📡 SSE parse error:', error, 'for line:', line);
                         }
                     }
                 }
@@ -96,12 +107,16 @@ export class SSEService extends StreamingService {
             // Handle any remaining data in the buffer
             if (buffer.trim()) {
                 try {
-                    const jsonEvent = JSON.parse(buffer);
+                    const eventWrapper = JSON.parse(buffer.trim());
+                     if (eventWrapper && typeof eventWrapper.data === 'string') {
+                        const jsonEvent = JSON.parse(eventWrapper.data);
+                        console.log("Received SSE Event (buffer):", jsonEvent);
                     if (this.messageCallback) {
                         this.messageCallback(jsonEvent);
+                        }
                     }
                 } catch (error) {
-                    console.error('Error parsing JSON:', error);
+                    console.error('Error parsing nested JSON from buffer:', error, 'Original buffer:', buffer);
                 }
             }
         } catch (error) {

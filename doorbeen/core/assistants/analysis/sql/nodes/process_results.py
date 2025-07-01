@@ -14,7 +14,7 @@ class ProcessResultsNode(TSModel):
     handler: ModelHandler
 
     async def __call__(self, state: SQLAssistantState, config: RunnableConfig):
-        assert state.interpretation is not None, "Interpretation should be present in the state"
+        assert state.interpretation is not None, "Interpretation should be present in the context"
 
         # Check if we have actual results to process
         execution_results = state.execution_results[-1] if state.execution_results else None

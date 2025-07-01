@@ -45,7 +45,7 @@ class DataExplorationNode(TSModel):
                 logging.warning("⚠️ [DATA_EXPLORATION] No database connection found")
                 raise Exception("Database connection required for data exploration")
             
-            # Use schema from state
+            # Use schema from context
             selected_tables = state.selected_tables or connection.get_table_names(schema_name=connection.credentials.database)
             table_schemas = state.table_schemas or connection.get_schema()
             
@@ -142,7 +142,7 @@ class DataExplorationNode(TSModel):
             
             logging.info(f"✅ [DATA_EXPLORATION] Exploration completed with {len(exploration_findings)} findings")
             
-            # Update state with findings
+            # Update context with findings
             summary = state.summary or ""
             summary += "\n\n[CURRENT OPERATION: Enhanced Data Exploration with QueryGen]\n"
             summary += f"Domain detection identified {len(priority_tables)} priority tables.\n"
@@ -184,7 +184,7 @@ class DataExplorationNode(TSModel):
         except Exception as e:
             logging.error(f"❌ [DATA_EXPLORATION] Exploration failed: {e}")
             
-            # Return error state
+            # Return error context
             error_summary = f"\n\n[ERROR: Data Exploration Failed]\n{str(e)}\n"
             summary = (state.summary or "") + error_summary
             
@@ -573,11 +573,11 @@ class SQLToolkitNode(TSModel):
 
     async def __call__(self, state: SQLAssistantState, config: RunnableConfig):
         configuration = config.get("configurable", {})
-        assert state.should_enrich, "Only enrich if the state should be enriched"
-        assert state.grade is not None, "Grade should be present in the state"
+        assert state.should_enrich, "Only enrich if the context should be enriched"
+        assert state.grade is not None, "Grade should be present in the context"
         connection: CommonSQLClient = configuration.get("connection", None)
         
-        # Use schema from state instead of reloading
+        # Use schema from context instead of reloading
         selected_tables = state.selected_tables or connection.get_table_names(schema_name=connection.credentials.database)
         table_schemas = state.table_schemas or connection.get_schema()
         

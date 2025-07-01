@@ -67,7 +67,7 @@ export type ConversationMessage = {
         unmet_objectives?: string[];
     };
     
-    // UI state management
+    // UI context management
     show_alternatives?: boolean;
     show_exploration_details?: boolean;
     processing_phase?: string;

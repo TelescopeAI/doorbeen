@@ -65,7 +65,7 @@ class QueryGenerationAgent(TSModel):
         logging.info(f"🤖 [QUERY_AGENT] Starting query generation workflow")
         logging.info(f"🎯 [QUERY_AGENT] Objective: {request.objective}")
         
-        # Initialize state
+        # Initialize context
         state = QueryGenerationState(
             request=request,
             generation_start_time=time.time()

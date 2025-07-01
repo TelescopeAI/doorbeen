@@ -1,7 +1,8 @@
-from typing import List, Optional, Annotated, ClassVar
+from typing import List, Optional, Annotated, ClassVar, Dict, Any
 
 from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
+from langgraph.managed.is_last_step import IsLastStepManager, RemainingStepsManager
 from pydantic import Field
 
 from doorbeen.core.assistants.analysis.grades import InputGradeResult
@@ -13,6 +14,7 @@ from doorbeen.core.types.observe import QueryAnalysisReport
 from doorbeen.core.types.sql_schema import DatabaseSchema
 from doorbeen.core.types.ts_model import TSModel
 from doorbeen.core.types.visualize import QueryVisualizationPlan
+from doorbeen.core.assistants.analysis.sql.context.agent_contexts import AgentCoordinationState
 
 
 def add_execution_operator(a: List[ExecutionResults], b: List[ExecutionResults]) -> List[ExecutionResults]:
@@ -21,6 +23,9 @@ def add_execution_operator(a: List[ExecutionResults], b: List[ExecutionResults])
 
 class SQLAssistantState(TSModel):
     messages: Annotated[list[AnyMessage], add_messages]
+    # Required fields for LangGraph supervisor compatibility
+    is_last_step: Annotated[bool, IsLastStepManager] = False
+    remaining_steps: Annotated[int, RemainingStepsManager] = 10
     error: Optional[dict] = None
     input: Optional[str] = Field(default=None, description="The current input question")
     should_enrich: Optional[bool] = Field(default=False, description="Whether the input needs to be enriched")
@@ -72,6 +77,9 @@ class SQLAssistantState(TSModel):
     # Data exploration fields
     data_exploration_complete: bool = Field(default=False, description="Whether data exploration phase is complete")
     exploration_findings: Optional[str] = Field(default=None, description="Findings from data exploration phase")
+    schema_context: Optional[dict] = Field(default=None, description="Database schema context from analysis")
+    domain_context: Optional[str] = Field(default=None, description="Domain context detected from database analysis")
+    analysis_summary: Optional[dict] = Field(default=None, description="Summary of database analysis from data analysis agent")
     
     # Objective completion tracking
     objectives_met: Optional[str] = Field(default=None, description="Status of whether objectives are met: 'all_objectives_met', 'some_objectives_met', or None")
@@ -85,6 +93,29 @@ class SQLAssistantState(TSModel):
     alternative_questions: Optional[List[str]] = Field(default_factory=list, description="Alternative question suggestions from enrichment")
     enrichment_strategy: Optional[str] = Field(default=None, description="Strategy used for enrichment (pattern-based, data-driven, etc.)")
     data_driven_thresholds: Optional[dict] = Field(default_factory=dict, description="Data-driven thresholds and constraints applied")
+    
+    # Multi-agent coordination context
+    agent_coordination: AgentCoordinationState = Field(default_factory=AgentCoordinationState, description="Multi-agent coordination context")
+    using_multi_agent: bool = Field(default=False, description="Whether using multi-agent supervisor architecture")
+    supervisor_active: bool = Field(default=False, description="Whether supervisor is currently coordinating agents")
+    
+    # Query generation fields
+    sql_query: Optional[str] = Field(default=None, description="Generated SQL query")
+    query_explanation: Optional[str] = Field(default=None, description="Explanation of the generated query")
+    query_confidence: Optional[float] = Field(default=None, description="Confidence score for the generated query")
+    query_complexity: Optional[str] = Field(default=None, description="Complexity level of the generated query")
+    query_validation_passed: bool = Field(default=False, description="Whether query validation passed")
+    query_validation_errors: List[str] = Field(default_factory=list, description="Query validation error messages")
+    
+    # Query execution fields
+    execution_results: Optional[List[Dict[str, Any]]] = Field(default=None, description="Results from query execution")
+    execution_error: Optional[str] = Field(default=None, description="Error message if query execution failed")
+    execution_time: Optional[float] = Field(default=None, description="Query execution time in seconds")
+    
+    # Analysis results
+    result_analysis: Optional[Dict[str, Any]] = Field(default=None, description="Analysis of query results")
+    objective_evaluation: Optional[Dict[str, Any]] = Field(default=None, description="Evaluation of whether objectives were met")
+    final_answer: Optional[str] = Field(default=None, description="Final formatted answer to the user's question")
     
     @property
     def can_retry(self) -> bool:
@@ -131,6 +162,103 @@ class SQLAssistantState(TSModel):
             "can_retry_execution": self.can_retry,
             "can_retry_objectives": self.can_retry_objectives
         }
+    
+    # Multi-agent helper methods
+    def enable_multi_agent_mode(self):
+        """Enable multi-agent supervisor architecture"""
+        self.using_multi_agent = True
+        self.supervisor_active = True
+    
+    def disable_multi_agent_mode(self):
+        """Disable multi-agent architecture (fallback to linear nodes)"""
+        self.using_multi_agent = False
+        self.supervisor_active = False
+    
+    def get_current_agent(self) -> Optional[str]:
+        """Get the currently active agent"""
+        return self.agent_coordination.current_agent
+    
+    def get_agent_sequence(self) -> List[str]:
+        """Get the sequence of agents that have been involved"""
+        return self.agent_coordination.agent_sequence.copy()
+    
+    def get_completed_agents(self) -> List[str]:
+        """Get the list of agents that have completed successfully"""
+        return self.agent_coordination.agents_completed.copy()
+    
+    def get_failed_agents(self) -> List[str]:
+        """Get the list of agents that have failed"""
+        return self.agent_coordination.agents_failed.copy()
+    
+    def can_agent_retry(self, agent_name: str) -> bool:
+        """Check if an agent can retry"""
+        retry_config = self.agent_coordination.get_agent_retry_config(agent_name)
+        return retry_config.can_retry
+    
+    def get_multi_agent_status(self) -> dict:
+        """Get comprehensive multi-agent status for monitoring"""
+        return {
+            "using_multi_agent": self.using_multi_agent,
+            "supervisor_active": self.supervisor_active,
+            "current_agent": self.get_current_agent(),
+            "agent_sequence": self.get_agent_sequence(),
+            "completed_agents": self.get_completed_agents(),
+            "failed_agents": self.get_failed_agents(),
+            "handoff_count": len(self.agent_coordination.handoff_history),
+            "supervisor_decisions": len(self.agent_coordination.supervisor_decisions),
+        }
+    
+    # Dictionary compatibility methods for LangGraph supervisor
+    def __getitem__(self, key):
+        """Make state dict-compatible for LangGraph"""
+        if hasattr(self, key):
+            return getattr(self, key)
+        raise KeyError(f"'{key}' not found in state")
+    
+    def __setitem__(self, key, value):
+        """Make state dict-compatible for LangGraph"""
+        if key in self.__fields__:
+            setattr(self, key, value)
+        else:
+            # For dynamic fields, use object.__setattr__ to bypass Pydantic validation
+            object.__setattr__(self, key, value)
+    
+    def get(self, key, default=None):
+        """Dict-like get method for LangGraph compatibility"""
+        try:
+            return self.__getitem__(key)
+        except KeyError:
+            return default
+    
+    def keys(self):
+        """Return all field names for dict-like behavior"""
+        # Return both Pydantic fields and any dynamic attributes
+        pydantic_keys = set(self.__fields__.keys())
+        dynamic_keys = set(key for key in self.__dict__.keys() if not key.startswith('_'))
+        return pydantic_keys.union(dynamic_keys)
+    
+    def items(self):
+        """Return key-value pairs for dict-like behavior"""
+        for key in self.keys():
+            yield key, getattr(self, key)
+    
+    def values(self):
+        """Return all values for dict-like behavior"""
+        for key in self.keys():
+            yield getattr(self, key)
+    
+    def update(self, other):
+        """Update state from another dict or state object"""
+        if isinstance(other, dict):
+            for key, value in other.items():
+                self.__setitem__(key, value)
+        elif hasattr(other, 'items'):
+            for key, value in other.items():
+                self.__setitem__(key, value)
+    
+    def copy(self):
+        """Create a copy of the state"""
+        return self.model_copy()
     
     # last_query: Optional[str] = Field(default=None, description="The last executed SQL query")
     # conversation_history: List[Dict[str, str]] = Field(default_factory=list, description="History of the conversation")

@@ -23,6 +23,7 @@ import InputFollowup from "~/components/Node/InputFollowup.vue";
 import QueryVisualization from "~/components/Node/QueryVisualization.vue";
 import DetermineInputObjectives from "~/components/Node/DetermineInputObjectives.vue";
 import StreamTermination from "~/components/Node/StreamTermination.vue";
+import SupervisorEvent from '~/components/Node/SupervisorEvent.vue';
 
 const props = defineProps({
   node: {
@@ -46,17 +47,17 @@ const tool_name = ref(props.node.name)
 const tool_input = ref('')
 const tool_output = ref(null)
 
-// Accordion state management
+// Accordion context management
 const localExpandedState = ref(true); // Default to expanded
 const accordionValue = computed(() => {
-  // If forceExpanded is explicitly set, use it; otherwise use local state
+  // If forceExpanded is explicitly set, use it; otherwise use local context
   if (props.forceExpanded !== undefined) {
     return props.forceExpanded ? "item-1" : "";
   }
   return localExpandedState.value ? "item-1" : "";
 });
 
-// Watch for forceExpanded changes to update local state
+// Watch for forceExpanded changes to update local context
 watch(() => props.forceExpanded, (newValue) => {
   if (newValue !== undefined) {
     localExpandedState.value = newValue;
@@ -95,6 +96,48 @@ function getTitle() {
   else if(tool_name === 'qa_grade_node'){
     return 'Grading the quality of the question'
   }
+  // NEW: Supervisor-specific event titles
+  else if(tool_name === 'supervisor_node'){
+    return 'Multi-agent supervisor coordinating analysis'
+  }
+  else if(tool_name === 'supervisor_initialized'){
+    return 'Supervisor initialized - Multi-agent coordination starting'
+  }
+  else if(tool_name === 'agent_handoff'){
+    return 'Supervisor delegating task to specialized agent'
+  }
+  else if(tool_name === 'agent_completed'){
+    return 'Agent completed task - returning to supervisor'
+  }
+  else if(tool_name === 'agent_failed'){
+    return 'Agent encountered error - supervisor handling retry'
+  }
+  else if(tool_name === 'agent_retry'){
+    return 'Supervisor retrying failed agent with different strategy'
+  }
+  else if(tool_name === 'supervisor_completed'){
+    return 'Multi-agent coordination completed successfully'
+  }
+  // Agent-specific titles
+  else if(tool_name === 'DataAnalysisAgent' || tool_name === 'data_analysis' || tool_name === 'DataAnalyst'){
+    return 'Data Analysis Agent exploring database structure'
+  }
+  else if(tool_name === 'QueryGenerationAgent' || tool_name === 'query_generation' || tool_name === 'QueryGenerator'){
+    return 'Query Generation Agent creating SQL queries'
+  }
+  else if(tool_name === 'ResultProcessingAgent' || tool_name === 'result_processing' || tool_name === 'ResultProcessor'){
+    return 'Result Processing Agent analyzing query results'
+  }
+  else if(tool_name === 'ObjectiveEvaluationAgent' || tool_name === 'objective_evaluation' || tool_name === 'ObjectiveEvaluator'){
+    return 'Objective Evaluation Agent checking if goals are met'
+  }
+  else if(tool_name === 'FinalizationAgent' || tool_name === 'finalization' || tool_name === 'Finalizer'){
+    return 'Finalization Agent preparing final response'
+  }
+  else if(tool_name === 'sql_supervisor'){
+    return 'Supervisor making a decision'
+  }
+  // Linear node titles
   else if(tool_name === 'enrich_input_node'){
     return 'Enriching the question with more context'
   }
@@ -104,13 +147,13 @@ function getTitle() {
   else if(tool_name === 'interpret_input_node'){
     return 'Understanding the question and forming the objective'
   }
-  else if(tool_name === 'data_exploration_node'){
+  else if(tool_name === 'data_exploration_node' || tool_name === 'DataAnalysisAgent'){
     return 'Exploring the database to understand the available data'
   }
   else if(tool_name === 'determine_input_objectives'){
     return 'Clarifying the input objectives and determining what data to gather'
   }
-  else if(tool_name === 'generate_sql_query_node'){
+  else if(tool_name === 'generate_sql_query_node' || tool_name === 'QueryGenerationAgent'){
     return 'Generating the SQL Query to fetch the data'
   }
   else if(tool_name === 'execute_sql_query_node'){
@@ -119,13 +162,13 @@ function getTitle() {
   else if(tool_name === 'handle_execution_failure_node'){
     return 'Trying to fix the generated query'
   }
-  else if(tool_name === 'process_results_node'){
+  else if(tool_name === 'process_results_node' || tool_name === 'ResultProcessingAgent'){
     return 'Analysing the data to find insights'
   }
   else if(tool_name === 'query_visualization_node'){
     return 'Planning data visualization and charts'
   }
-  else if(tool_name === 'final_answer_node'){
+  else if(tool_name === 'final_answer_node' || tool_name === 'FinalizationAgent' || tool_name === 'ObjectiveEvaluationAgent'){
     return 'Generating Final Answer'
   }
   else if(tool_name === 'stream_termination'){
@@ -163,7 +206,7 @@ function getTitle() {
         @start-new-question="handleStartNewQuestion"
       />
       <DataExploration 
-        v-else-if="tool_name === 'data_exploration_node'"
+        v-else-if="tool_name === 'data_exploration_node' || tool_name === 'DataAnalysisAgent'"
         :node="tool_output" 
         @start-new-question="handleStartNewQuestion"
       />
@@ -177,13 +220,18 @@ function getTitle() {
         :node="tool_output" 
         @start-new-question="handleStartNewQuestion"
       />
+      <SupervisorEvent
+        v-else-if="tool_name === 'sql_supervisor'"
+        :node="tool_output" 
+        @start-new-question="handleStartNewQuestion"
+      />
       <ExecuteSQL 
         v-else-if="tool_name === 'execute_sql_query_node'"
         :node="tool_output" 
         @start-new-question="handleStartNewQuestion"
       />
       <GenerateQuery 
-        v-else-if="tool_name === 'generate_sql_query_node'"
+        v-else-if="tool_name === 'generate_sql_query_node' || tool_name === 'QueryGenerationAgent'"
         :node="tool_output" 
         @start-new-question="handleStartNewQuestion"
       />
@@ -193,7 +241,7 @@ function getTitle() {
         @start-new-question="handleStartNewQuestion"
       />
       <AnalyseExecutionResults 
-        v-else-if="tool_name === 'process_results_node'"
+        v-else-if="tool_name === 'process_results_node' || tool_name === 'ResultProcessingAgent'"
         :node="tool_output" 
         @start-new-question="handleStartNewQuestion"
       />
@@ -203,14 +251,13 @@ function getTitle() {
         @start-new-question="handleStartNewQuestion"
       />
       <GenerateFinalAnswer 
-        v-else-if="tool_name === 'final_answer_node'"
+        v-else-if="tool_name === 'final_answer_node' || tool_name === 'FinalizationAgent' || tool_name === 'ObjectiveEvaluationAgent'"
         :node="tool_output" 
         @start-new-question="handleStartNewQuestion"
       />
       <StreamTermination 
         v-else-if="tool_name === 'stream_termination'"
         :node="tool_output" 
-        @start-new-question="handleStartNewQuestion"
       />
       <Fallback 
         v-else
@@ -219,27 +266,26 @@ function getTitle() {
       />
     </div>
 
-    <!-- Accordion for Reasoning (when not inside master accordion) -->
-    <Accordion 
-      v-else-if="tool_output && !isResultNull" 
-      type="single"
-      :default-value="accordionValue"
-      collapsible
-      class="tool-display-accordion"
-    >
+    <!-- Accordion view for main display -->
+    <Accordion v-else type="single" collapsible class="w-full" :value="accordionValue" @update:modelValue="localExpandedState = !!$event">
       <AccordionItem value="item-1">
-        <AccordionTrigger class="tool-header">
-          <div class="flex items-center justify-between w-full pr-3">
-            <div class="flex items-center gap-3">
-              <Settings class="w-5 h-5 text-blue-600" />
-              <span class="text-sm font-medium text-gray-700">{{ getTitle() }}</span>
+        <AccordionTrigger>
+          <div class="flex flex-row items-center justify-between text-gray-500 w-full">
+            <div class="flex flex-row items-center space-x-2">
+              <Settings v-if="tool_name === 'fallback_node' || tool_name === 'default_node' || getTitle() === 'Unknown tool'" class="h-4 w-4" />
+              <CheckCircle v-else-if="tool_output && !isResultNull" class="h-4 w-4" />
+              <Clock v-else class="h-4 w-4" />
+              <span class="text-sm font-normal">{{ getTitle() }}</span>
             </div>
-            <CheckCircle class="w-5 h-5 text-green-500" />
+            <Loader2 
+              v-if="!tool_output || isResultNull" 
+              class="h-4 w-4 animate-spin text-gray-400" 
+            />
           </div>
         </AccordionTrigger>
         <AccordionContent>
-          <Card class="tool-content-card">
-            <CardContent>
+          <Card>
+            <CardContent v-if="tool_output && !isResultNull" class="p-4">
               <!-- Explicit component rendering based on tool name -->
               <NewOrFollowup 
                 v-if="tool_name === 'init_assistant'"
@@ -262,7 +308,7 @@ function getTitle() {
                 @start-new-question="handleStartNewQuestion"
               />
               <DataExploration 
-                v-else-if="tool_name === 'data_exploration_node'"
+                v-else-if="tool_name === 'data_exploration_node' || tool_name === 'DataAnalysisAgent'"
                 :node="tool_output" 
                 @start-new-question="handleStartNewQuestion"
               />
@@ -276,13 +322,18 @@ function getTitle() {
                 :node="tool_output" 
                 @start-new-question="handleStartNewQuestion"
               />
+              <SupervisorEvent
+                v-else-if="tool_name === 'sql_supervisor'"
+                :node="tool_output" 
+                @start-new-question="handleStartNewQuestion"
+              />
               <ExecuteSQL 
                 v-else-if="tool_name === 'execute_sql_query_node'"
                 :node="tool_output" 
                 @start-new-question="handleStartNewQuestion"
               />
               <GenerateQuery 
-                v-else-if="tool_name === 'generate_sql_query_node'"
+                v-else-if="tool_name === 'generate_sql_query_node' || tool_name === 'QueryGenerationAgent'"
                 :node="tool_output" 
                 @start-new-question="handleStartNewQuestion"
               />
@@ -292,7 +343,7 @@ function getTitle() {
                 @start-new-question="handleStartNewQuestion"
               />
               <AnalyseExecutionResults 
-                v-else-if="tool_name === 'process_results_node'"
+                v-else-if="tool_name === 'process_results_node' || tool_name === 'ResultProcessingAgent'"
                 :node="tool_output" 
                 @start-new-question="handleStartNewQuestion"
               />
@@ -302,14 +353,13 @@ function getTitle() {
                 @start-new-question="handleStartNewQuestion"
               />
               <GenerateFinalAnswer 
-                v-else-if="tool_name === 'final_answer_node'"
+                v-else-if="tool_name === 'final_answer_node' || tool_name === 'FinalizationAgent' || tool_name === 'ObjectiveEvaluationAgent'"
                 :node="tool_output" 
                 @start-new-question="handleStartNewQuestion"
               />
               <StreamTermination 
                 v-else-if="tool_name === 'stream_termination'"
                 :node="tool_output" 
-                @start-new-question="handleStartNewQuestion"
               />
               <Fallback 
                 v-else
@@ -321,23 +371,6 @@ function getTitle() {
         </AccordionContent>
       </AccordionItem>
     </Accordion>
-
-    <!-- If no output, show minimal status -->
-    <div v-else class="tool-placeholder">
-      <Card>
-        <CardContent>
-          <div class="flex items-center justify-between p-4">
-            <div class="flex items-center gap-3">
-              <Clock class="w-5 h-5 text-yellow-500" />
-              <span class="text-sm text-gray-600">{{ getTitle() }}</span>
-            </div>
-            <div>
-              <Loader2 class="w-5 h-5 text-blue-500 animate-spin" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
   </div>
 </template>
 

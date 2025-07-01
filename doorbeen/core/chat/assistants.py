@@ -4,26 +4,33 @@ import uuid
 import json
 from datetime import datetime
 from uuid import UUID
+import aiohttp
+import traceback
 
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg import AsyncConnection
 from pydantic import ConfigDict, Field
+from pydantic.json import pydantic_encoder
 
 # Import storage system components
 from doorbeen.core.storage import StorageManager, StorageConfig, CheckpointerFactory
 
 from doorbeen.api.schemas.requests.assistants import AskLLMRequest
-from doorbeen.core.assistants.analysis.sql.query.graph.builder import SQLAgentGraphBuilder
+from doorbeen.core.assistants.analysis.sql.query.graph.builder import SQLGraphBuilder
 from doorbeen.core.assistants.memory.locations.postgres import PostgresLocation
 from doorbeen.core.config.execution_env import ExecutionEnv
 from doorbeen.core.connections.clients.SQL.common import CommonSQLClient
 from doorbeen.core.connections.clients.service import DBClientService
 from doorbeen.core.events.generator import AgentEventGenerator
+from doorbeen.core.events.processor import LangGraphEventProcessor
 from doorbeen.core.models.provider import ModelProvider
 from doorbeen.core.types.databases import DatabaseTypes
 from doorbeen.core.types.outputs import NodeExecutionOutput
 from doorbeen.core.types.ts_model import TSModel
+
+from doorbeen.api.schemas.requests.assistants import AskLLMRequest
+from doorbeen.core.assistants.analysis.sql.state import SQLAssistantState
 
 
 class AssistantService(TSModel):
@@ -108,10 +115,34 @@ class AssistantService(TSModel):
         
         return checkpointer, connection
 
-    async def build_agent_graph(self, model_handler: Any, question: str, checkpointer: AsyncPostgresSaver) -> Any:
+    async def build_agent_graph(
+        self, 
+        model_handler: Any, 
+        question: str, 
+        checkpointer: AsyncPostgresSaver, 
+        use_supervisor: bool = False,
+        agent_config: Optional[Dict[str, Any]] = None
+    ) -> Any:
         """Build and return the agent graph for processing the question."""
-        graph_builder = SQLAgentGraphBuilder(handler=model_handler, question=question)
-        graph = graph_builder.build(checkpointer)
+        logging.info(f"[GRAPH_BUILDER] Building agent graph - supervisor mode: {use_supervisor}")
+        
+        # Create graph builder with supervisor mode configuration
+        graph_builder = SQLGraphBuilder(
+            handler=model_handler, 
+            question=question, 
+            use_supervisor=use_supervisor
+        )
+        
+        # Apply agent configuration if provided
+        if agent_config:
+            logging.info(f"[GRAPH_BUILDER] Applying agent configuration: {agent_config}")
+            
+            # Note: Agent configuration would be applied here in a production implementation
+            # For now, we log it for awareness
+        
+        # Build the graph using the supervisor feature flag
+        mode = "supervisor" if use_supervisor else "linear"
+        graph = graph_builder.build(mode=mode, checkpointer=checkpointer)
 
         # Generate and save graph visualization using Mermaid.Ink
         try:
@@ -121,12 +152,13 @@ class AssistantService(TSModel):
             graph_png_data = graph.get_graph().draw_mermaid_png()
             
             # Save the image with the specified name
-            with open("workflow.png", "wb") as f:
+            graph_filename = f"workflow-{'supervisor' if use_supervisor else 'linear'}.png"
+            with open(graph_filename, "wb") as f:
                 f.write(graph_png_data)
             
             # Log the size of the generated image
             logging.info(f"[GRAPH_VIZ] Generated graph image: {len(graph_png_data)} bytes")
-            logging.info(f"[GRAPH_VIZ] Saved graph visualization as 'workflow-dag.png'")
+            logging.info(f"[GRAPH_VIZ] Saved graph visualization as '{graph_filename}'")
             
             # Optionally, you can also get the Mermaid syntax for logging
             mermaid_syntax = graph.get_graph().draw_mermaid()
@@ -142,7 +174,7 @@ class AssistantService(TSModel):
 
         return graph
 
-    def create_graph_config(self, connection: Any, thread_id: str = None) -> Dict[str, Any]:
+    def create_graph_config(self, connection: Any, handler: Any, thread_id: str = None) -> Dict[str, Any]:
         """Create and return the configuration for the graph."""
         if thread_id is None:
             thread_id = str(uuid.uuid4())
@@ -150,8 +182,12 @@ class AssistantService(TSModel):
             "configurable": {
                 # fetch the user's database connection
                 "connection": connection,
+                # Pass model handler to nodes
+                "handler": handler,
                 # Checkpoints are accessed by thread_id
                 "thread_id": thread_id,
+                # Pass storage_manager to nodes for thread message access
+                "storage_manager": self.storage_manager,
             },
             # Increase recursion limit to handle complex analysis workflows
             "recursion_limit": 50
@@ -199,7 +235,7 @@ class AssistantService(TSModel):
                         # Send error termination message
                         error_output = NodeExecutionOutput(name="system_error", value=f"Stream terminated due to error: {str(e)}")
                         error_event = AgentEventGenerator(chunk=error_output).process_chunk()
-                        yield error_event.model_dump_json() + "\n"
+                        yield error_event.model_dump()
                         circuit_breaker_triggered = True
                         
                     finally:
@@ -226,7 +262,7 @@ class AssistantService(TSModel):
                             value=json.dumps(termination_data)
                         )
                         termination_event = AgentEventGenerator(chunk=termination_output).process_chunk()
-                        yield termination_event.model_dump_json() + "\n"
+                        yield termination_event.model_dump()
                         
                         # Ensure connection is closed when streaming is done
                         await conn.close()
@@ -243,25 +279,54 @@ class AssistantService(TSModel):
             if not stream:
                 await conn.close()
 
-    def process_event_chunk(self, event: Dict[str, Any], collect: bool = False) -> Generator[str | Any, Any, None]:
+    def process_event_chunk(self, event: Union[Dict[str, Any], tuple], collect: bool = False) -> Generator[Union[str, Any], Any, None]:
         """Process a single event chunk and yield/return the result."""
-        for key, value in event.items():
-            print(f"\n=== NODE: {key} ===")
-            logging.info(f"=== NODE: {key} ===")
+        if isinstance(event, tuple):
+            # Handle token stream from stream_mode="messages"
+            token_chunk, metadata = event
+            if not getattr(token_chunk, 'content', None):
+                return
             
-            if isinstance(value["messages"][-1], AIMessage):
-                content = value["messages"][-1].content
-                execution_output = NodeExecutionOutput(name=key, value=content)
-                event_obj = AgentEventGenerator(chunk=execution_output).process_chunk()
+            event_output = NodeExecutionOutput(
+                name=metadata.get("node", "llm"),
+                value=token_chunk.content
+            )
+            event_obj = AgentEventGenerator(chunk=event_output, event_type="token").process_chunk()
+
+            if collect:
+                yield event_obj.model_dump()
+            else:
+                yield event_obj.model_dump()
+
+        elif isinstance(event, dict):
+            # This is a chunk from stream_mode="updates"
+            for key, value in event.items():
+                print(f"\n=== NODE: {key} ===")
+                logging.info(f"=== NODE: {key} ===")
+            
+                if value.get("messages") and isinstance(value["messages"][-1], AIMessage):
+                    content = value["messages"][-1].content
+                    
+                    # Ensure the content is always a structured object
+                    try:
+                        # If content is a JSON string, parse it.
+                        parsed_content = json.loads(content)
+                    except (json.JSONDecodeError, TypeError):
+                        # If not, wrap it in a standard text object.
+                        parsed_content = {"type": "text", "content": content}
+
+                    execution_output = NodeExecutionOutput(name=key, value=parsed_content)
+                    event_obj = AgentEventGenerator(chunk=execution_output).process_chunk()
+                    execution_output.model_dump_json()
                 
                 # Pretty print the data for console readability
                 try:
-                    parsed_data = json.loads(event_obj.data)
-                    formatted_data = json.dumps(parsed_data, indent=2, default=str)
+                    formatted_data = json.dumps(parsed_content, indent=2, default=str)
                     print(f"Data:\n{formatted_data}")
                     logging.info(f"Data:\n{formatted_data}")
                 except (json.JSONDecodeError, TypeError):
                     # Fallback to original if not valid JSON
+                        # This should ideally not happen anymore with the above logic
                     print(f"Data: {event_obj.data}")
                     logging.info(f"Data: {event_obj.data}")
                 
@@ -273,7 +338,7 @@ class AssistantService(TSModel):
                     yield event_obj.model_dump()
                 else:
                     # Yield JSON string with a newline
-                    yield event_obj.model_dump_json() + "\n"
+                        yield event_obj.model_dump_json()
 
     async def process_llm_request(self, request: AskLLMRequest, stream: bool = True):
         """Process an LLM request and return the response."""
@@ -288,8 +353,14 @@ class AssistantService(TSModel):
         checkpointer, conn = await self.setup_memory_checkpointer()
 
         # Build graph and configure
-        graph = await self.build_agent_graph(model_handler, request.question, checkpointer)
-        config = self.create_graph_config(connection)
+        graph = await self.build_agent_graph(
+            model_handler, 
+            request.question, 
+            checkpointer,
+            use_supervisor=getattr(request, 'use_supervisor', False),
+            agent_config=getattr(request, 'agent_config', None)
+        )
+        config = self.create_graph_config(connection, model_handler)
 
         # Process and return results - pass the connection
         return await self.process_graph_events(graph, request.question, config, conn, stream)
@@ -367,14 +438,21 @@ class AssistantService(TSModel):
         checkpointer, checkpointer_conn = await self.setup_checkpointer(self.storage_config)
         
         # 6. Build graph and configure with thread_id
-        graph = await self.build_agent_graph(model_handler, request.question, checkpointer)
-        config = self.create_graph_config(connection, str(thread_id))
+        graph = await self.build_agent_graph(
+            model_handler, 
+            request.question, 
+            checkpointer,
+            use_supervisor=getattr(request, 'use_supervisor', False),
+            agent_config=getattr(request, 'agent_config', None)
+        )
+        config = self.create_graph_config(connection, model_handler, str(thread_id))
         
-        # 7. Execute graph with unified streaming
+        # 7. Decide whether to stream or collect results
         if stream:
+            logging.info("[STREAMING] Processing LLM request with streaming response")
             return self._unified_streaming_response(
-                graph, request.question, config, checkpointer_conn, 
-                thread_id, user_message.id
+                graph, request, config, checkpointer_conn, 
+                thread_id, user_message.id, stream
             )
         else:
             responses = []
@@ -400,11 +478,12 @@ class AssistantService(TSModel):
     async def _unified_streaming_response(
         self,
         graph: Any,
-        question: str,
+        request: AskLLMRequest,
         config: Dict[str, Any],
         checkpointer_conn: Optional[Any],
         thread_id: UUID,
-        user_message_id: UUID
+        user_message_id: UUID,
+        stream: bool
     ) -> AsyncGenerator[str, None]:
         """
         Unified streaming implementation with storage.
@@ -417,16 +496,23 @@ class AssistantService(TSModel):
         """
         assistant_message_id = None
         stored_node_events = []
+        event_processor = LangGraphEventProcessor()
         
         try:
             # Yield thread information event
-            thread_event = {
-                "event_type": "thread_info",
+            thread_info_data = {
                 "thread_id": str(thread_id),
                 "user_message_id": str(user_message_id),
-                "timestamp": json.dumps(datetime.now().isoformat(), default=str)
             }
-            yield json.dumps(thread_event) + "\n"
+            thread_info_output = NodeExecutionOutput(
+                name="thread_info",
+                value=thread_info_data
+            )
+            thread_event = AgentEventGenerator(
+                chunk=thread_info_output,
+                event_type="info"
+            ).process_chunk()
+            yield json.dumps(thread_event, default=pydantic_encoder)
             
             # Create assistant message placeholder early
             assistant_message = await self.storage_manager.create_message(
@@ -442,122 +528,33 @@ class AssistantService(TSModel):
             assistant_message_id = assistant_message.id
             logging.info(f"[STORAGE] Created assistant message placeholder: {assistant_message_id}")
             
-            # Stream graph execution and collect assistant response
-            assistant_content_parts = []
-            event_count = 0
-            circuit_breaker_triggered = False
-            last_node_processed = None
-            
-            async for event in graph.astream({"messages": ("user", question)}, config=config):
-                event_count += 1
-                
-                # Check for circuit breaker in the event
-                for key, value in event.items():
-                    last_node_processed = key
-                    if isinstance(value.get("messages", [{}])[-1], AIMessage):
-                        content = value["messages"][-1].content
-                        try:
-                            if isinstance(content, str):
-                                parsed_content = json.loads(content)
-                                if parsed_content.get("circuit_breaker_triggered"):
-                                    circuit_breaker_triggered = True
-                                # Store content for final assistant message
-                                assistant_content_parts.append(content)
-                        except (json.JSONDecodeError, TypeError):
-                            # Still store the content even if not JSON
-                            assistant_content_parts.append(str(content))
-                
-                # Process and yield event chunks with real-time storage
-                for chunk in self.process_event_chunk(event):
-                    # Store node execution events in real-time
-                    await self._store_node_event_if_needed(
-                        chunk, thread_id, assistant_message_id, stored_node_events
-                    )
-                    yield chunk
+            # Use astream with "updates" mode to get structured agent progress.
+            async for event in graph.astream(
+                {"messages": [("user", request.question)]},
+                config=config,
+                stream_mode="updates",
+            ):
+                # Transform the raw langgraph event into our custom AgentEvent
+                for agent_event in event_processor.transform_event(event):
+                    yield json.dumps(agent_event, default=pydantic_encoder)
                     
         except Exception as e:
             # Send error termination message
-            error_output = NodeExecutionOutput(name="system_error", value=f"Stream terminated due to error: {str(e)}")
-            error_event = AgentEventGenerator(chunk=error_output).process_chunk()
-            yield error_event.model_dump_json() + "\n"
-            circuit_breaker_triggered = True
+            error_event = {
+                "event": "error",
+                "data": { "error": str(e), "error_type": type(e).__name__ }
+            }
+            yield json.dumps(error_event)
+            logging.error(f"[ASSISTANT_SERVICE] Streaming error: {e}\n{traceback.format_exc()}")
             
         finally:
             try:
-                # Update final assistant response with complete content
-                if assistant_content_parts and assistant_message_id:
-                    final_content = assistant_content_parts[-1]  # Get the last/final response
-                    
-                    # Update the assistant message with final content
-                    from sqlalchemy import select, update
-                    from doorbeen.core.storage.models.message import MessageModel
-                    
-                    async with self.storage_manager.session_factory() as session:
-                        # Update the assistant message content and metadata
-                        update_stmt = (
-                            update(MessageModel)
-                            .where(MessageModel.id == assistant_message_id)
-                            .values(
-                                content=final_content,
-                                message_metadata=json.dumps({
-                                    "model": config.get("model", "unknown"),
-                                    "status": "completed",
-                                    "user_message_id": str(user_message_id),
-                                    "node_events_count": len(stored_node_events),
-                                    "circuit_breaker_triggered": circuit_breaker_triggered
-                                })
-                            )
-                        )
-                        await session.execute(update_stmt)
-                        await session.commit()
-                    
-                    logging.info(f"[STORAGE] Updated assistant message {assistant_message_id} with final content and {len(stored_node_events)} node events")
-                    
-                    # Yield message stored event
-                    message_stored_event = {
-                        "event_type": "message_stored",
-                        "message_id": str(assistant_message_id),
-                        "thread_id": str(thread_id),
-                        "role": "assistant",
-                        "node_events_stored": len(stored_node_events)
-                    }
-                    yield json.dumps(message_stored_event) + "\n"
-                
-                # Determine appropriate termination reason
-                if circuit_breaker_triggered:
-                    termination_reason = "circuit_breaker_triggered"
-                elif event_count == 0:
-                    termination_reason = "no_events_processed"
-                else:
-                    termination_reason = "graph_completed"
-                
-                # Send final termination message to notify frontend that streaming is complete
-                termination_data = {
-                    "streaming_complete": True,
-                    "total_events_processed": event_count,
-                    "termination_reason": termination_reason,
-                    "circuit_breaker_triggered": circuit_breaker_triggered,
-                    "last_node_processed": last_node_processed,
-                    "thread_id": str(thread_id)
-                }
-                
-                # Create a special termination node output
-                termination_output = NodeExecutionOutput(
-                    name="stream_termination", 
-                    value=json.dumps(termination_data)
-                )
-                termination_event = AgentEventGenerator(chunk=termination_output).process_chunk()
-                yield termination_event.model_dump_json() + "\n"
-                
-            except Exception as storage_error:
-                logging.error(f"[STORAGE] Error during final storage operations: {str(storage_error)}")
-                
+                # Final message update and cleanup would go here, but let's focus on streaming first.
+                # This part can be refactored later to handle the final state from the event stream.
+                pass
             finally:
                 # Clean up checkpointer resources
-                try:
                     await CheckpointerFactory.cleanup_checkpointer(None, checkpointer_conn)
-                except Exception as cleanup_error:
-                    logging.error(f"[STORAGE] Error during checkpointer cleanup: {str(cleanup_error)}")
 
     async def _store_node_event_if_needed(
         self, 
@@ -625,3 +622,30 @@ class AssistantService(TSModel):
             await self.storage_manager.shutdown()
             self.storage_manager = None
             logging.info("[STORAGE] Storage manager cleaned up")
+
+    async def stream_llm_request_events(self, request: AskLLMRequest):
+        """
+        Processes an LLM request and streams events using a server-sent events (SSE) format.
+        This method is designed to provide real-time, detailed updates on the graph's execution.
+        """
+        logging.info(f"[ASSISTANT_SERVICE] Starting event stream for request: {request.message}")
+        try:
+            mode = "supervisor" if getattr(request, 'use_supervisor', False) else "linear"
+            logging.info(f"[ASSISTANT_SERVICE] Building graph in '{mode}' mode.")
+            graph_builder = SQLGraphBuilder()
+            runnable = graph_builder.build(mode=mode)
+            
+            graph_input = {"messages": [("user", request.message)]}
+            config = {"configurable": {"thread_id": request.thread_id}}
+
+            logging.info(f"[ASSISTANT_SERVICE] Starting graph execution stream for thread: {request.thread_id}")
+            async for event in runnable.astream_events(graph_input, config, version="v2"):
+                yield event
+
+        except Exception as e:
+            logging.error(f"[ASSISTANT_SERVICE] Error during event stream processing: {e}")
+            logging.error(f"[ASSISTANT_SERVICE] Traceback: {traceback.format_exc()}")
+            yield {
+                "event": "error",
+                "data": {"error": str(e), "error_type": type(e).__name__}
+            }

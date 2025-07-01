@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useAuth } from '@clerk/vue';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import AppSidebar from '@/components/AppSidebar.vue'
+import AppHeader from '@/components/AppHeader.vue'
 import { Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css' 
 import type { Thread } from '~/types/threads'
@@ -72,11 +73,9 @@ if (process.client) {
         @thread-deleted="handleThreadDeleted"
       />
       <main class="flex-1 overflow-auto">
-        <header class="flex items-center gap-2 p-4 border-b">
-          <SidebarTrigger />
-        </header>
+        <AppHeader />
         <div class="p-4">
-  <slot/>
+          <slot/>
         </div>
       </main>
     </SidebarProvider>

@@ -7,6 +7,6 @@ class DocsMeta:
     TAGS_META = [
         {
             "name": "Assistants",
-            "description": "Endpoints for interacting with AI assistants, including querying databases with natural language, managing assistant state, and retrieving conversation history",
+            "description": "Endpoints for interacting with AI assistants, including querying databases with natural language, managing assistant context, and retrieving conversation history",
         },
     ]

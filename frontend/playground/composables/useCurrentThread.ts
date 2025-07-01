@@ -1,7 +1,7 @@
 import type { Thread } from '~/types/threads'
 
 export const useCurrentThread = () => {
-  // Global state for current thread
+  // Global context for current thread
   const currentThread = useState<Thread | null>('app.currentThread', () => null)
   
   const setCurrentThread = (thread: Thread | null) => {
