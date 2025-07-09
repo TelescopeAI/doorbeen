@@ -60,7 +60,6 @@ onMounted(async () => {
       if (modelConfig && Object.keys(modelConfig).length > 0) {
         model_params.name = modelConfig.name || ''
         model_params.api_key = modelConfig.api_key || ''
-        console.log('Loaded model config:', modelConfig)
       }
     } catch (error) {
       console.error('Error parsing stored model config:', error)

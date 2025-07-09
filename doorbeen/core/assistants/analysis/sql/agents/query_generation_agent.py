@@ -2,62 +2,104 @@
 Query Generation Agent - LangGraph Implementation
 
 This module provides the QueryGenerationAgent using LangGraph's create_react_agent pattern.
-The agent is responsible for generating, validating, and correcting SQL queries.
+The agent is responsible for generating, validating, and correcting SQL queries using the
+enhanced draft-validate-execute workflow with query plan integration.
 """
 
-from typing import Any, List, Optional, Dict
-from pydantic import Field, Json
-import json
+from typing import Any, List, Dict, Union
+from pydantic import ConfigDict, Field
 
 from doorbeen.core.types.ts_model import TSModel
 from doorbeen.core.assistants.analysis.sql.supervisor.state import SQLSupervisorState
 from langgraph.prebuilt import create_react_agent
 
 from doorbeen.core.assistants.analysis.sql.tools.query_generation import (
-    generate_sql_query,
-    validate_sql_query,
-    correct_sql_query,
-    execute_sql_query,
+    get_comprehensive_context,
+    generate_draft_query,
+    validate_draft_query,
+    correct_draft_query,
+    execute_validated_query,
+    get_table_sample_data,
     query_generation_pre_hook,
     query_generation_post_hook
+)
+from doorbeen.core.assistants.analysis.sql.supervisor.tools import (
+    get_objective_from_state,
+    check_query_execution_status,
+    add_handoff_context,
+    get_current_status
 )
 from doorbeen.core.models.provider import ModelHandler
 
 
-class QueryGenerationResponse(TSModel):
-    """Structured response schema for the Query Generation Agent."""
-    sql_query: str = Field(description="The final, validated SQL query to be executed.")
-    query_validation_error: Optional[str] = Field(None, description="Any validation error that occurred during query generation and was subsequently corrected.")
-    execution_results: Optional[Json] = Field(None, description="A JSON representing the results obtained from executing the SQL query.")
+QUERY_GENERATION_AGENT_PROMPT = """
+You are a Query Generation Agent specialized in creating, validating, and executing SQL queries.
+
+## CRITICAL RULES - ABSOLUTE REQUIREMENTS:
+
+### 🚫 NEVER HALLUCINATE OR MAKE UP RESULTS
+- **NEVER write SQL queries yourself** - ONLY use the `generate_draft_query` tool
+- **NEVER make up execution results** - ONLY use actual results from `execute_validated_query` tool
+- **NEVER guess or assume** - if a tool fails, report the failure to the supervisor
+- **ONLY populate response fields with ACTUAL tool outputs** - never fabricate data
+
+### 🔧 MANDATORY TOOL USAGE SEQUENCE
+You MUST follow this exact sequence:
+
+1. **get_comprehensive_context**: Get complete context including schema and sample data
+2. **generate_draft_query**: Create SQL query using the tool (never write SQL manually)
+3. **validate_draft_query**: Validate the generated query for syntax and logic
+4. **execute_validated_query**: Execute the query and get real results
+
+### 📊 STATE-BASED OPERATION
+- All query results are stored in the state by tools
+- All execution status is tracked in the state
+- The supervisor reads from state, not from your responses
+- Your job is to orchestrate tools, not to provide final answers
+
+### ❌ FAILURE HANDLING
+If ANY tool fails:
+- Report the specific failure to the supervisor
+- Do NOT attempt to work around failures by making up alternatives
+- Do NOT skip validation steps
+- Let the supervisor decide the next action
+
+### 🎯 SUCCESS CRITERIA
+- Query successfully generated via tools
+- Query successfully validated via tools  
+- Query successfully executed via tools
+- Real results stored in state
+
+## Available Tools:
+- `get_comprehensive_context`: Retrieve complete context for query generation
+- `generate_draft_query`: Generate SQL query based on context and requirements
+- `validate_draft_query`: Validate generated query for correctness
+- `execute_validated_query`: Execute validated query and store results in state
+
+## Your Role:
+Execute the tool sequence methodically. If any step fails, report to supervisor immediately. 
+Success means all tools executed successfully with real results in state.
+"""
 
 
 def create_query_generation_agent(
     name: str,
     handler: ModelHandler,
 ):
-    """Creates a query generation agent with a structured response format."""
+    """Creates a query generation agent with enhanced draft-validate-execute workflow."""
+    system_message = QUERY_GENERATION_AGENT_PROMPT
     
-    # Get the JSON schema for the response model
-    response_schema = QueryGenerationResponse.model_json_schema()
-    
-    system_message = f"""
-You are a SQL query generation expert. Your responsibilities are to:
-- Generate a syntactically correct and efficient SQL query based on the provided analysis.
-- Validate the query's syntax. If it fails, correct it.
-- Execute the final, validated query to retrieve the necessary data.
-
-IMPORTANT: You must format your final output as a single JSON object that conforms to the following schema.
-Do not output any other text or formatting.
-
-Response JSON Schema:
-{json.dumps(response_schema, indent=2)}
-"""
-
     tools = [
-        generate_sql_query,
-        validate_sql_query,
-        correct_sql_query,
-        execute_sql_query,
+        get_objective_from_state,
+        check_query_execution_status,
+        get_comprehensive_context,
+        generate_draft_query,
+        validate_draft_query,
+        correct_draft_query,
+        execute_validated_query,
+        get_table_sample_data,
+        add_handoff_context,
+        get_current_status
     ]
     
     return create_react_agent(
@@ -68,5 +110,4 @@ Response JSON Schema:
         state_schema=SQLSupervisorState,
         pre_model_hook=query_generation_pre_hook,
         post_model_hook=query_generation_post_hook,
-        response_format=QueryGenerationResponse
     ) 

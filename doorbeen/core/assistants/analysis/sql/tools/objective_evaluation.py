@@ -1,140 +1,518 @@
 import json
-from typing import Dict, Any, List
 from typing_extensions import Annotated
 
-from langchain_core.tools import tool
+from langchain_core.tools import tool, InjectedToolCallId
 from langchain_core.runnables import RunnableConfig
-from langchain_core.messages import AIMessage
+from langchain_core.messages import ToolMessage
 from langgraph.prebuilt import InjectedState
+from langgraph.types import Command
 from doorbeen.core.models.provider import ModelHandler
-from doorbeen.core.assistants.analysis.sql.state import SQLAssistantState
-from doorbeen.core.assistants.analysis.sql.supervisor.state import SQLSupervisorState
 
 
 @tool
 async def evaluate_objective_completion(
     summary: str, 
-    state: Annotated[SQLAssistantState, InjectedState],
-    config: Annotated[RunnableConfig, "Configuration"]
-) -> str:
+    state: Annotated[dict, InjectedState],
+    config: Annotated[RunnableConfig, "Configuration"],
+    tool_call_id: Annotated[str, InjectedToolCallId]
+) -> Command:
     """Evaluate if the original objective has been met."""
-    # Automatically get objective from state.input instead of requiring LLM to provide it
-    objective = state.input
     
-    # Get handler from config (still need RunnableConfig for external resources)
-    configuration = config.get("configurable", {})
-    handler: ModelHandler = configuration.get("handler")
-    
-    if not handler:
-        return json.dumps({"success": False, "error": "Model handler not set."})
-
-    prompt = f"""
-Given the user's objective and the summary of the findings, determine if the objective has been fully met.
-
-Objective: {objective}
-Summary: {summary}
-
-Respond with "true" if the objective is met, and "false" otherwise, followed by a brief justification.
-"""
     try:
+        # Emit initial progress event
+        start_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Evaluating objective completion...",
+                "content": "🎯 Assessing if analysis meets original objective",
+                "progress": 10
+            }
+            }
+        
+        # Automatically get objective from state.input
+        objective = state["input"]
+        
+            # Get handler from config
+        configuration = config.get("configurable", {})
+        handler: ModelHandler = configuration.get("handler")
+        
+        if not handler:
+            error_event = {
+                "type": "agent:error",
+                "name": "ObjectiveEvaluation",
+                "data": {
+                    "scope": "ObjectiveEvaluation",
+                    "description": "Model handler not available",
+                    "content": "❌ No model handler for objective evaluation",
+                    "progress": 0
+                }
+            }
+            
+            tool_message = ToolMessage(
+                content="❌ Model handler not available",
+                tool_call_id=tool_call_id
+            )
+            
+            return Command(
+                update={
+                    "messages": [tool_message],
+                    "agent_lifecycle_events": [start_progress_event, error_event],
+                    "error": {"type": "handler_error", "message": "Model handler not set"}
+                }
+            )
+        
+        # Emit analysis progress
+        analysis_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Analyzing objective against summary...",
+                "content": "📊 Comparing objective with analysis results",
+                "progress": 50
+            }
+        }
+
+        prompt = f"""
+    Given the user's objective and the summary of the findings, determine if the objective has been fully met.
+
+    Objective: {objective}
+    Summary: {summary}
+
+    Respond with "true" if the objective is met, and "false" otherwise, followed by a brief justification.
+    """
+        
         response = await handler.model.ainvoke(prompt)
-        return json.dumps({"success": True, "result": response.content})
+        
+        # Emit completion progress
+        completion_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Objective evaluation completed",
+                "content": "✅ Determined objective completion status",
+                "progress": 100
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content="✅ Objective evaluation completed",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [start_progress_event, analysis_progress_event, completion_progress_event],
+                "objective_evaluation": response.content
+            }
+        ) 
     except Exception as e:
-        return json.dumps({"success": False, "error": str(e)})
+        error_event = {
+            "type": "agent:error",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": f"Objective evaluation failed: {str(e)}",
+                "content": "❌ Failed to evaluate objective completion",
+                "progress": 0
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content=f"❌ Objective evaluation failed: {str(e)}",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [error_event],
+                "error": {"type": "evaluation_error", "message": str(e)}
+            }
+        )
 
 
 @tool
 async def suggest_next_steps(
     summary: str, 
-    state: Annotated[SQLAssistantState, InjectedState],
-    config: Annotated[RunnableConfig, "Configuration"]
-) -> str:
+    state: Annotated[dict, InjectedState],
+    config: Annotated[RunnableConfig, "Configuration"],
+    tool_call_id: Annotated[str, InjectedToolCallId]
+) -> Command:
     """If the objective is not met, suggest the next steps."""
-    # Automatically get objective from state.input
-    objective = state.input
     
-    configuration = config.get("configurable", {})
-    handler: ModelHandler = configuration.get("handler")
-    
-    if not handler:
-        return json.dumps({"success": False, "error": "Model handler not set."})
-
-    prompt = f"""
-The user's objective has not yet been fully met. Based on the objective and the summary of findings so far, what are the next logical steps to take?
-
-Objective: {objective}
-Summary: {summary}
-
-Suggest a list of concrete next steps.
-"""
     try:
+        # Emit initial progress event
+        start_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Generating next steps suggestions...",
+                "content": "🔄 Identifying next actions to complete objective",
+                "progress": 10
+            }
+        }
+        
+        # Automatically get objective from state.input
+        objective = state["input"]
+        
+        configuration = config.get("configurable", {})
+        handler: ModelHandler = configuration.get("handler")
+    
+        if not handler:
+                error_event = {
+                    "type": "agent:error",
+                    "name": "ObjectiveEvaluation",
+                    "data": {
+                        "scope": "ObjectiveEvaluation",
+                        "description": "Model handler not available",
+                        "content": "❌ No model handler for next steps generation",
+                        "progress": 0
+                    }
+                }
+                
+                tool_message = ToolMessage(
+                    content="❌ Model handler not available",
+                    tool_call_id=tool_call_id
+                )
+                
+                return Command(
+                    update={
+                        "messages": [tool_message],
+                        "agent_lifecycle_events": [start_progress_event, error_event],
+                        "error": {"type": "handler_error", "message": "Model handler not set"}
+                    }
+                )
+            
+        # Emit analysis progress
+        analysis_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Analyzing gaps and opportunities...",
+                "content": "🔍 Identifying areas needing further analysis",
+                "progress": 50
+            }
+        }
+
+        prompt = f"""
+        The user's objective has not yet been fully met. Based on the objective and the summary of findings so far, what are the next logical steps to take?
+
+        Objective: {objective}
+        Summary: {summary}
+
+        Suggest a list of concrete next steps.
+        """
+            
         response = await handler.model.ainvoke(prompt)
-        return json.dumps({"success": True, "next_steps": response.content.split('\n')})
+        
+        # Emit completion progress
+        completion_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Next steps suggestions generated",
+                "content": "✅ Identified actionable next steps",
+                "progress": 100
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content="✅ Next steps suggestions generated",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+        update={
+            "messages": [tool_message],
+            "agent_lifecycle_events": [start_progress_event, analysis_progress_event, completion_progress_event],
+            "next_steps": response.content.split('\n')
+        }
+    )
     except Exception as e:
-        return json.dumps({"success": False, "error": str(e)})
+        error_event = {
+            "type": "agent:error",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": f"Next steps generation failed: {str(e)}",
+                "content": "❌ Failed to generate next steps",
+                "progress": 0
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content=f"❌ Next steps generation failed: {str(e)}",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [error_event],
+                "error": {"type": "next_steps_error", "message": str(e)}
+            }
+        )
 
 
-# Keep existing functions for backward compatibility
 @tool
 async def check_completeness(
     analysis: str, 
-    state: Annotated[SQLSupervisorState, InjectedState],
-    config: Annotated[RunnableConfig, "Configuration"]
-) -> str:
+    state: Annotated[dict, InjectedState],
+    config: Annotated[RunnableConfig, "Configuration"],
+    tool_call_id: Annotated[str, InjectedToolCallId]
+) -> Command:
     """Evaluate if the analysis completely answers the original question."""
-    # Automatically get question from state.input
-    question = state.input
     
-    configuration = config.get("configurable", {})
-    handler: ModelHandler = configuration.get("handler")
-    
-    if not handler:
-        return json.dumps({"success": False, "error": "Model handler not set."})
-
-    prompt = f"""
-Original question: {question}
-Analysis: {analysis}
-
-Does this analysis completely answer the original question? Answer yes or no and provide reasoning.
-"""
     try:
+        # Emit initial progress event
+        start_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Checking analysis completeness...",
+                "content": "📋 Verifying if analysis answers original question",
+                "progress": 10
+            }
+        }
+        
+        # Automatically get question from state.input
+        question = state["input"]
+        
+        configuration = config.get("configurable", {})
+        handler: ModelHandler = configuration.get("handler")
+    
+        if not handler:
+                error_event = {
+                    "type": "agent:error",
+                    "name": "ObjectiveEvaluation",
+                    "data": {
+                        "scope": "ObjectiveEvaluation",
+                        "description": "Model handler not available",
+                        "content": "❌ No model handler for completeness check",
+                        "progress": 0
+                    }
+                }
+                
+                tool_message = ToolMessage(
+                    content="❌ Model handler not available",
+                    tool_call_id=tool_call_id
+                )
+                
+                return Command(
+                    update={
+                        "messages": [tool_message],
+                        "agent_lifecycle_events": [start_progress_event, error_event],
+                        "error": {"type": "handler_error", "message": "Model handler not set"}
+                    }
+                )
+            
+        # Emit analysis progress
+        analysis_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Evaluating analysis completeness...",
+                "content": "🔍 Checking if all aspects of question are addressed",
+                "progress": 50
+            }
+        }
+
+        prompt = f"""
+    Original question: {question}
+    Analysis: {analysis}
+
+    Does this analysis completely answer the original question? Answer yes or no and provide reasoning.
+    """
+            
         response = await handler.model.ainvoke(prompt)
         completeness = "yes" in response.content.lower()
-        return json.dumps({"success": True, "is_complete": completeness, "explanation": response.content})
+            
+        # Emit completion progress
+        completion_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Completeness check completed",
+                "content": f"✅ Analysis is {'complete' if completeness else 'incomplete'}",
+                "progress": 100
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content=f"✅ Completeness check completed - {'Complete' if completeness else 'Incomplete'}",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+        update={
+            "messages": [tool_message],
+            "agent_lifecycle_events": [start_progress_event, analysis_progress_event, completion_progress_event],
+            "is_complete": completeness,
+            "completeness_explanation": response.content
+        }
+    )
     except Exception as e:
-        return json.dumps({"success": False, "error": str(e)})
+        error_event = {
+            "type": "agent:error",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": f"Completeness check failed: {str(e)}",
+                "content": "❌ Failed to check analysis completeness",
+                "progress": 0
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content=f"❌ Completeness check failed: {str(e)}",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [error_event],
+                "error": {"type": "completeness_error", "message": str(e)}
+            }
+        )
 
 
 @tool
 async def check_constraints(
     analysis: str, 
-    state: Annotated[SQLSupervisorState, InjectedState],
-    config: Annotated[RunnableConfig, "Configuration"]
-) -> str:
+    state: Annotated[dict, InjectedState],
+    config: Annotated[RunnableConfig, "Configuration"],
+    tool_call_id: Annotated[str, InjectedToolCallId]
+) -> Command:
     """Check if any constraints mentioned in the original question have been addressed in the analysis."""
-    # Automatically get question from state.input
-    question = state.input
     
-    configuration = config.get("configurable", {})
-    handler: ModelHandler = configuration.get("handler")
-    
-    if not handler:
-        return json.dumps({"success": False, "error": "Model handler not set."})
-
-    prompt = f"""
-Original question: {question}
-Analysis: {analysis}
-
-Are there any constraints or specific requirements in the question that have been addressed in the analysis?
-"""
     try:
+        # Emit initial progress event
+        start_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Checking constraint compliance...",
+                "content": "🔒 Verifying constraints are addressed",
+                "progress": 10
+            }
+        }
+        
+        # Automatically get question from state.input
+        question = state["input"]
+        
+        configuration = config.get("configurable", {})
+        handler: ModelHandler = configuration.get("handler")
+        
+        if not handler:
+                error_event = {
+                    "type": "agent:error",
+                    "name": "ObjectiveEvaluation",
+                    "data": {
+                        "scope": "ObjectiveEvaluation",
+                        "description": "Model handler not available",
+                        "content": "❌ No model handler for constraint check",
+                        "progress": 0
+                    }
+                }
+                
+                tool_message = ToolMessage(
+                    content="❌ Model handler not available",
+                    tool_call_id=tool_call_id
+                )
+                
+                return Command(
+                    update={
+                        "messages": [tool_message],
+                        "agent_lifecycle_events": [start_progress_event, error_event],
+                        "error": {"type": "handler_error", "message": "Model handler not set"}
+                    }
+                )
+            
+            # Emit analysis progress
+        analysis_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Analyzing constraint adherence...",
+                "content": "🔍 Checking if specific requirements are met",
+                "progress": 50
+            }
+        }
+
+        prompt = f"""
+        Original question: {question}
+        Analysis: {analysis}
+
+        Are there any constraints or specific requirements in the question that have been addressed in the analysis?
+        """
+            
         response = await handler.model.ainvoke(prompt)
-        return json.dumps({"success": True, "constraints_check": response.content})
+    
+        # Emit completion progress
+        completion_progress_event = {
+            "type": "agent:progress",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": "Constraint check completed",
+                "content": "✅ Constraint compliance verified",
+                "progress": 100
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content="✅ Constraint check completed",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [start_progress_event, analysis_progress_event, completion_progress_event],
+                "constraints_check": response.content
+            }
+        )
     except Exception as e:
-        return json.dumps({"success": False, "error": str(e)})
+        error_event = {
+            "type": "agent:error",
+            "name": "ObjectiveEvaluation",
+            "data": {
+                "scope": "ObjectiveEvaluation",
+                "description": f"Constraint check failed: {str(e)}",
+                "content": "❌ Failed to check constraints",
+                "progress": 0
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content=f"❌ Constraint check failed: {str(e)}",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [error_event],
+                "error": {"type": "constraint_error", "message": str(e)}
+            }
+        )
 
 
-def objective_evaluation_pre_hook(state: Annotated[SQLSupervisorState, InjectedState]) -> dict:
+def objective_evaluation_pre_hook(state: Annotated[dict, InjectedState]) -> dict:
     """Pre-model hook for objective evaluation agent - emits agent start event"""
     event = {
         "type": "agent:start",
@@ -148,7 +526,7 @@ def objective_evaluation_pre_hook(state: Annotated[SQLSupervisorState, InjectedS
     return {"agent_lifecycle_events": [event]}
 
 
-def objective_evaluation_post_hook(state: Annotated[SQLSupervisorState, InjectedState]) -> dict:
+def objective_evaluation_post_hook(state: Annotated[dict, InjectedState]) -> dict:
     """Post-model hook for objective evaluation agent - emits agent end event"""
     event = {
         "type": "agent:end",

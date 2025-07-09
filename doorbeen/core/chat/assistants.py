@@ -190,7 +190,7 @@ class AssistantService(TSModel):
                 "storage_manager": self.storage_manager,
             },
             # Increase recursion limit to handle complex analysis workflows
-            "recursion_limit": 50
+            "recursion_limit": 100
         }
 
     async def process_graph_events(
@@ -505,11 +505,11 @@ class AssistantService(TSModel):
                 "user_message_id": str(user_message_id),
             }
             thread_info_output = NodeExecutionOutput(
-                name="thread_info",
+                name="thread_info", 
                 value=thread_info_data
             )
             thread_event = AgentEventGenerator(
-                chunk=thread_info_output,
+                chunk=thread_info_output, 
                 event_type="info"
             ).process_chunk()
             yield json.dumps(thread_event, default=pydantic_encoder)
@@ -549,6 +549,26 @@ class AssistantService(TSModel):
             
         finally:
             try:
+                # Send stream termination event to notify frontend
+                termination_data = {
+                    "streaming_complete": True,
+                    "thread_id": str(thread_id),
+                    "assistant_message_id": str(assistant_message_id) if assistant_message_id else None,
+                    "termination_reason": "graph_completed"
+                }
+                
+                # Create a special termination node output
+                termination_output = NodeExecutionOutput(
+                    name="stream_termination", 
+                    value=termination_data
+                )
+                termination_event = AgentEventGenerator(
+                    chunk=termination_output
+                ).process_chunk()
+                yield json.dumps(termination_event, default=pydantic_encoder)
+                
+                logging.info(f"[STREAMING] Stream termination event sent for thread: {thread_id}")
+                
                 # Final message update and cleanup would go here, but let's focus on streaming first.
                 # This part can be refactored later to handle the final state from the event stream.
                 pass

@@ -14,13 +14,20 @@ export class SSEService extends StreamingService {
         const { signal } = this.abortController;
 
         try {
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+            
+            // Only add Authorization header if token is provided
+            if (this.token) {
+                headers['Authorization'] = `Bearer ${this.token}`;
+            }
+
             const response = await $fetch<ReadableStream>(this.url, {
                 method: 'POST',
                 body: JSON.stringify(this.options?.body),
                 responseType: 'stream',
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                },
+                headers,
                 signal,
                 // credentials: 'include',
 
@@ -47,12 +54,19 @@ export class SSEService extends StreamingService {
     }
 
     async send(message: any): Promise<void> {
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+        };
+        
+        // Only add Authorization header if token is provided
+        if (this.token) {
+            headers['Authorization'] = `Bearer ${this.token}`;
+        }
+
         await $fetch(this.url, {
             method: 'POST',
             body: message,
-            headers: {
-                'Authorization': `Bearer ${this.token}`,
-            },
+            headers,
             // credentials: 'include',
 
         });

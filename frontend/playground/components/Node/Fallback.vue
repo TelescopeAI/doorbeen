@@ -8,9 +8,9 @@ const props = defineProps({
 </script>
 
 <template>
-<div>
+<pre class="whitespace-pre-wrap">
   {{ node }}
-</div>
+</pre>
 </template>
 
 <style scoped>

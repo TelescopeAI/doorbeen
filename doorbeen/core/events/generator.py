@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Union
+from typing import Any, Union, Optional, Dict
 
 import pytz
 from langchain_core.messages import AIMessage
@@ -16,6 +16,12 @@ class AgentEvent(TSModel):
     name: str
     data: Any
     occurred_at: datetime = Field(default_factory=lambda: datetime.now(pytz.UTC))
+    
+    # Enhanced context fields for better UI handling
+    category: Optional[str] = None  # 'tool_call', 'agent_output', 'handoff', 'progress', 'error', 'warning'
+    source: Optional[str] = None    # 'supervisor', 'data_analyst', 'query_generator', 'finalizer', etc.
+    stage: Optional[str] = None     # 'planning', 'execution', 'validation', 'finalization', etc.
+    metadata: Optional[Dict[str, Any]] = None  # Additional context for UI
 
 
 class AgentEventGenerator(TSModel):

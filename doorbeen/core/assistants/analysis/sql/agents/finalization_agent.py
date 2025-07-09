@@ -1,5 +1,5 @@
 from typing import Any, List
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from doorbeen.core.types.ts_model import TSModel
 from doorbeen.core.assistants.analysis.sql.supervisor.state import SQLSupervisorState
@@ -17,9 +17,11 @@ from doorbeen.core.models.provider import ModelHandler
 class FinalizationResponse(TSModel):
     """Structured response schema for the Finalization Agent."""
     final_summary: str = Field(description="A final, comprehensive summary that directly addresses the user's objective, intended for a non-technical audience.")
-    visualization_suggestions: List[str] = Field(description="A list of suggested visualizations to help illustrate the findings.")
-    follow_up_questions: List[str] = Field(description="A list of relevant follow-up questions a user might ask based on the analysis.")
+    visualization_suggestions: List[str] = Field(description="A list of suggested visualizations to help illustrate the findings.", default_factory=list)
+    follow_up_questions: List[str] = Field(description="A list of relevant follow-up questions a user might ask based on the analysis.", default_factory=list)
     final_answer: str = Field(description="The final, formatted answer ready to be presented to the user.")
+    
+    model_config = ConfigDict(extra="forbid")
 
 
 def create_finalization_agent(

@@ -1,14 +1,29 @@
-from .data_analysis import get_schema
+from .data_analysis import (
+    get_schema,
+    get_table_sample_data,
+    create_query_plan,
+    get_comprehensive_context,
+    analyze_relevant_tables,
+    data_analysis_pre_hook,
+    data_analysis_post_hook,
+)
 from .query_generation import (
-    generate_sql_query,
-    validate_sql_query,
-    correct_sql_query,
-    execute_sql_query
+    generate_draft_query,
+    validate_draft_query,
+    correct_draft_query,
+    execute_validated_query,
+    get_table_sample_data
 )
 from .result_processing import (
-    summarize_data,
-    identify_trends,
-    extract_key_insights
+    analyze_dataset_overview,
+    get_top_values_analysis,
+    aggregate_data_analysis,
+    statistical_analysis,
+    trend_analysis,
+    correlation_analysis,
+    outlier_detection,
+    categorical_analysis,
+    generate_insights_summary
 )
 from .objective_evaluation import (
     evaluate_objective_completion,
@@ -24,19 +39,31 @@ from .finalization import (
 )
 
 __all__ = [
-    # Data analysis tools
+    # Data analysis tools - Enhanced with query planning
     "get_schema",
+    "get_table_sample_data",
+    "create_query_plan",
+    "get_comprehensive_context",
+    "analyze_relevant_tables",
+    "data_analysis_pre_hook",
+    "data_analysis_post_hook",
     
-    # Query generation tools
-    "generate_sql_query",
-    "validate_sql_query", 
-    "correct_sql_query",
-    "execute_sql_query",
+    # Query generation tools - Enhanced draft-validate-execute workflow
+    "generate_draft_query",
+    "validate_draft_query",
+    "correct_draft_query",
+    "execute_validated_query",
     
-    # Result processing tools
-    "summarize_data",
-    "identify_trends",
-    "extract_key_insights",
+    # Result processing tools - New pandas-based analysis tools
+    "analyze_dataset_overview",
+    "get_top_values_analysis",
+    "aggregate_data_analysis",
+    "statistical_analysis",
+    "trend_analysis",
+    "correlation_analysis",
+    "outlier_detection",
+    "categorical_analysis",
+    "generate_insights_summary",
     
     # Objective evaluation tools
     "evaluate_objective_completion",

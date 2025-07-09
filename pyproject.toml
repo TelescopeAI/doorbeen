@@ -30,17 +30,17 @@ exclude = [
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
 langchain = "0.3.26"
-fastapi = {extras = ["all"], version = "0.115.12"}
+fastapi = {extras = ["all"], version = "0.115.14"}
 pydantic = "2.11.1"
 uvicorn = {extras = ["standard"], version = "^0.34.0"}
 sqlalchemy = {extras = ["asyncio"], version = "^2.0.41"}
 psycopg-binary = "^3.1.18"
 pymongo = "^4.6.3"
 secweb = "^1.9.1"
-openai = "1.69.0"
+openai = "1.93.0"
 httpx = "^0.28.1"
 langchain-community = "0.3.26"
-langchain-openai = "0.3.21"
+langchain-openai = "0.3.27"
 langchain-experimental = "0.3.1"
 sqlalchemy-bigquery = {extras = ["bqstorage"], version = "^1.13.0"}
 google-cloud-bigquery-storage = "^2.30.0"
@@ -65,10 +65,13 @@ pytest = "^8.4.1"
 pytest-asyncio = "^1.0.0"
 
 
-[[tool.poetry.source]]
-name = "localpip"
-url = "http://localhost:8300/simple"
-priority = "supplemental"
+#[[tool.poetry.source]]
+#name = "localpip"
+#url = "http://localhost:8300/simple"
+#priority = "supplemental"
+langgraph-cli = {extras = ["inmem"], version = "^0.3.3"}
+numpy = "^2.3.1"
+pandas = "^2.3.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0", "setuptools>=42"]

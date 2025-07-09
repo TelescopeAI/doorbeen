@@ -3,178 +3,727 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telescope Doorbeen Loading </title>
+    <title>Telescope Doorbeen</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Rubik+Mono+One&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         html, body {
             height: 100%;
             width: 100%;
-            margin: 0;
-            padding: 0;
             overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #fafafa 0%, #f0f0f0 50%, #e8e8e8 100%);
+        }
+        
+        .loading-container {
+            height: 100vh;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            font-family: 'Rubik Mono One', sans-serif;
+            gap: 2rem;
+            padding: 2rem;
         }
-        .loading-container {
+        
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            opacity: 0;
+            animation: fadeInUp 1s ease-out 0.2s forwards;
+        }
+        
+        .logo {
+            width: 60px;
+            height: 60px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+        
+        .brand-name {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #2563eb;
+            letter-spacing: -0.025em;
+        }
+        
+        .question-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            max-width: 600px;
+            opacity: 0;
+            animation: fadeInUp 1s ease-out 0.4s forwards;
+        }
+        
+        .search-icon {
+            width: 20px;
+            height: 20px;
+            color: #9ca3af;
+            flex-shrink: 0;
+        }
+        
+        .user-question {
+            font-size: 1rem;
+            color: #6b7280;
+            font-weight: 400;
+            font-style: italic;
+            transition: all 0.3s ease;
+        }
+        
+        .stack-cards {
             position: relative;
             width: 100%;
-            height: 100%;
+            max-width: 550px;
+            height: 240px;
+            opacity: 0;
+            animation: fadeInUp 1s ease-out 0.6s forwards;
         }
-        .scene {
+        
+        .stack-cards__item {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
-            height: 100%;
             display: flex;
-            justify-content: center;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1.25rem;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e5e7eb;
+            transform-origin: center top;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Initial stack positioning */
+        .stack-cards__item:nth-child(1) {
+            transform: translateY(0px) scale(1);
+            z-index: 5;
+        }
+        
+        .stack-cards__item:nth-child(2) {
+            transform: translateY(8px) scale(0.98);
+            z-index: 4;
+        }
+        
+        .stack-cards__item:nth-child(3) {
+            transform: translateY(16px) scale(0.96);
+            z-index: 3;
+        }
+        
+        .stack-cards__item:nth-child(4) {
+            transform: translateY(24px) scale(0.94);
+            z-index: 2;
+        }
+        
+        .stack-cards__item:nth-child(5) {
+            transform: translateY(32px) scale(0.92);
+            z-index: 1;
+        }
+        
+        /* Active state - lift up */
+        .stack-cards__item.active {
+            background: #f8fafc;
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.12);
+            transform: translateY(-8px) scale(1.02);
+            z-index: 10;
+        }
+        
+        /* Completed state */
+        .stack-cards__item.completed {
+            background: #f0fdf4;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.08);
+        }
+        
+        /* Move to bottom of stack */
+        .stack-cards__item.move-to-bottom {
+            transform: translateY(50px) scale(0.88);
+            opacity: 0;
+            z-index: -1;
+        }
+        
+        .event-icon {
+            width: 28px;
+            height: 28px;
+            display: flex;
             align-items: center;
-            opacity: 0;
-            transition: opacity 0.5s ease-in-out;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 2px;
         }
-        .scene1 {
-            background-color: #1a1a1a;
-        }
-        .scene2 {
-            background-color: #f5f5f5;
-            flex-direction: column;
-        }
-        .word {
-            font-size: 6vw;
-            font-weight: 900;
-            color: #f0f0f0;
-            opacity: 0;
-            position: absolute;
-        }
-        #please { top: 1%; left: 1%; }
-        #wait { top: 1%; right: 1%; }
-        #we { bottom: 1%; right: 1%; }
-        #are { bottom: 1%; left: 1%; }
-        .progress-container {
-            width: 80%;
-            height: 4px;
-            background-color: #e0e0e0;
-            position: relative;
-        }
-        .progress-bar {
-            height: 100%;
-            width: 0;
-            background-color: #4caf50;
-            transition: width 0.5s linear;
-        }
-        .progress-circle {
-            width: 40px;
-            height: 40px;
+        
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #e5e7eb;
+            border-top: 2px solid #3b82f6;
             border-radius: 50%;
-            background-color: #4caf50;
-            position: absolute;
-            top: 50%;
-            left: 0;
-            transform: translate(-50%, -50%);
+            animation: spin 1s linear infinite;
+        }
+        
+        .checkmark {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #10b981;
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
             color: white;
             font-weight: bold;
-            font-size: 12px;
-            transition: left 0.5s linear;
+            font-size: 14px;
         }
-        .loading-text {
-            color: #000000;
+        
+        .event-content {
+            flex: 1;
+        }
+        
+        .event-title {
             font-size: 1rem;
-            margin-top: 20px;
-            transition: font-size 0.5s ease-out;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.25rem;
+        }
+        
+        .event-description {
+            font-size: 0.85rem;
+            color: #6b7280;
+            line-height: 1.4;
+            margin-bottom: 0.5rem;
+        }
+        
+        .event-sample {
+            font-size: 0.8rem;
+            color: #64748b;
+            background: rgba(248, 250, 252, 0.8);
+            padding: 0.75rem;
+            border-radius: 10px;
+            font-family: inherit;
+            line-height: 1.5;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.4s ease 200ms;
+            margin-top: 0.5rem;
+        }
+        
+        .sample-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.375rem;
+        }
+        
+        .sample-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .sample-bullet {
+            width: 4px;
+            height: 4px;
+            background: #94a3b8;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .sample-text {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+        
+        .stack-cards__item.active .event-title {
+            color: #2563eb;
+        }
+        
+        .stack-cards__item.active .event-description {
+            color: #3b82f6;
+        }
+        
+        .stack-cards__item.active .event-sample {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .stack-cards__item.active .sample-bullet {
+            background: #3b82f6;
+        }
+        
+        .stack-cards__item.active .sample-text {
+            color: #475569;
+        }
+        
+        .stack-cards__item.completed .event-title {
+            color: #059669;
+        }
+        
+        .stack-cards__item.completed .event-description {
+            color: #10b981;
+        }
+        
+        .stack-cards__item.completed .event-sample {
+            opacity: 1;
+            transform: translateY(0);
+            background: rgba(240, 253, 244, 0.8);
+        }
+        
+        .stack-cards__item.completed .sample-bullet {
+            background: #10b981;
+        }
+        
+        .stack-cards__item.completed .sample-text {
+            color: #059669;
+        }
+        
+        .stack-cards {
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        
+        .stack-cards.transitioning {
+            opacity: 0.3;
+            transform: scale(0.98);
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .logo {
+                width: 50px;
+                height: 50px;
+            }
+            
+            .brand-name {
+                font-size: 1.5rem;
+            }
+            
+            .user-question {
+                font-size: 0.9rem;
+            }
+            
+            .stack-cards {
+                max-width: 90%;
+                height: 220px;
+            }
+            
+            .stack-cards__item {
+                padding: 1rem;
+            }
+            
+            .event-title {
+                font-size: 0.9rem;
+            }
+            
+            .event-description {
+                font-size: 0.8rem;
+            }
+            
+            .event-sample {
+                font-size: 0.75rem;
+                padding: 0.625rem;
+            }
+            
+            .sample-text {
+                font-size: 0.75rem;
+            }
+        }
+        
+        /* Accessibility */
+        @media (prefers-reduced-motion: reduce) {
+            .spinner {
+                animation: none;
+                border: 2px solid #9ca3af;
+            }
+            
+            .logo-container, .question-container, .stack-cards {
+                animation: none;
+                opacity: 1;
+            }
+            
+            .stack-cards__item {
+                transition: none;
+            }
         }
     </style>
 </head>
 <body>
-<div class="loading-container">
-    <div class="scene scene1">
-        <div id="please" class="word">PLEASE</div>
-        <div id="wait" class="word">WAIT</div>
-        <div id="we" class="word">WE</div>
-        <div id="are" class="word">ARE</div>
-    </div>
-    <div class="scene scene2">
-        <div class="progress-container">
-            <div class="progress-bar"></div>
-            <div class="progress-circle">0%</div>
+    <div class="loading-container">
+        <div class="logo-container">
+            <img src="/images/TS_Planet_Logo_Blue.svg" alt="Telescope Logo" class="logo">
+            <div class="brand-name">Telescope</div>
         </div>
-        <div class="loading-text">Loading</div>
+        
+        <div class="question-container">
+            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            <div class="user-question" id="current-question">Show me sales trends for Q4 and identify which products are performing best</div>
+        </div>
+        
+        <div class="stack-cards">
+            <div class="stack-cards__item" id="event-1">
+                <div class="event-icon">
+                    <div class="spinner"></div>
+                </div>
+                <div class="event-content">
+                    <div class="event-title">Parsing your query</div>
+                    <div class="event-description">Breaking down your question to identify data requirements, time periods, and metrics needed for analysis</div>
+                    <div class="event-sample" id="sample-1">
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Entities: sales_data, products, Q4</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Time Period: Oct-Dec 2024</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Metrics: revenue, growth_rate, performance</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Tables: sales, products, customers</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stack-cards__item" id="event-2">
+                <div class="event-icon">
+                    <div class="spinner"></div>
+                </div>
+                <div class="event-content">
+                    <div class="event-title">Connecting to data sources</div>
+                    <div class="event-description">Accessing your sales database and retrieving Q4 transaction data across all product categories</div>
+                    <div class="event-sample" id="sample-2">
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Database: sales_warehouse</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Records: 1,247,392 transactions</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Products: 2,847 unique SKUs</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Date Range: 2024-10-01 to 2024-12-31</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stack-cards__item" id="event-3">
+                <div class="event-icon">
+                    <div class="spinner"></div>
+                </div>
+                <div class="event-content">
+                    <div class="event-title">Processing sales data</div>
+                    <div class="event-description">Calculating revenue trends, product performance metrics, and seasonal patterns from your data</div>
+                    <div class="event-sample" id="sample-3">
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Q4 Revenue: $2.4M (+12.3% vs Q3)</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Top Category: Electronics ($892K)</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Growth Leader: Laptops (+34.5%)</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Seasonal Peak: Black Friday week</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stack-cards__item" id="event-4">
+                <div class="event-icon">
+                    <div class="spinner"></div>
+                </div>
+                <div class="event-content">
+                    <div class="event-title">Generating insights</div>
+                    <div class="event-description">Creating visualizations and identifying key trends, top-performing products, and actionable recommendations</div>
+                    <div class="event-sample" id="sample-4">
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Key Insight: Holiday demand drove 67% of Q4 growth</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Top Product: MacBook Air (15% of revenue)</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Recommendation: Increase laptop inventory</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Trend: Mobile accessories declining (-8%)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stack-cards__item" id="event-5">
+                <div class="event-icon">
+                    <div class="spinner"></div>
+                </div>
+                <div class="event-content">
+                    <div class="event-title">Preparing your report</div>
+                    <div class="event-description">Formatting charts, tables, and summary insights into a comprehensive sales performance analysis</div>
+                    <div class="event-sample" id="sample-5">
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Charts: Revenue trend, Product ranking</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Tables: Top 20 products, Category breakdown</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Sections: Executive summary, Detailed analysis</div>
+                        </div>
+                        <div class="sample-item">
+                            <div class="sample-bullet"></div>
+                            <div class="sample-text">Export: PDF, Excel, Interactive dashboard</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
-<script>
-    const scene1 = document.querySelector('.scene1');
-    const scene2 = document.querySelector('.scene2');
-    const words = document.querySelectorAll('.word');
-    const progressBar = document.querySelector('.progress-bar');
-    const progressCircle = document.querySelector('.progress-circle');
-    const loadingText = document.querySelector('.loading-text');
 
-    function showScene(scene) {
-        scene.style.opacity = '1';
-    }
-
-    function hideScene(scene) {
-        scene.style.opacity = '0';
-    }
-
-    function animateWords() {
-        words.forEach((word, index) => {
-            setTimeout(() => {
-                word.style.opacity = '1';
-                setTimeout(() => word.style.opacity = '0', 1000);
-            }, index * 500);
-        });
-    }
-
-    function updateProgress(progress) {
-        progressBar.style.width = `${progress}%`;
-        progressCircle.style.left = `${progress}%`;
-        progressCircle.textContent = `${progress}%`;
-        const maxSize = 10;
-        const growthRate = 6;
-        const growthFactor = Math.pow(maxSize, progress / 100) - 1;
-        const newSize = 1 + (growthFactor * growthRate);
-        loadingText.style.fontSize = `${newSize}rem`;
-    }
-
-    function animateProgress() {
-        let progress = 0;
-        return new Promise((resolve) => {
-            const interval = setInterval(() => {
-                progress += 5;
-                updateProgress(progress);
-                if (progress >= 100) {
-                    clearInterval(interval);
-                    resolve();
+    <script>
+        class StackCards {
+            constructor(element) {
+                this.element = element;
+                this.items = [...element.querySelectorAll('.stack-cards__item')];
+                this.events = [
+                    { id: 'event-1', duration: 1400 },
+                    { id: 'event-2', duration: 1800 },
+                    { id: 'event-3', duration: 2200 },
+                    { id: 'event-4', duration: 1600 },
+                    { id: 'event-5', duration: 1200 }
+                ];
+                
+                this.questions = [
+                    "Show me sales trends for Q4 and identify which products are performing best",
+                    "What are the profit margins by product category this quarter?",
+                    "Compare our Q4 performance against the same period last year",
+                    "Which customer segments are driving the most revenue growth?",
+                    "Analyze inventory turnover rates for top-selling products"
+                ];
+                
+                this.sampleData = [
+                    // Question 1: Sales trends and top products
+                    [
+                        ["Entities: sales_data, products, Q4", "Time Period: Oct-Dec 2024", "Metrics: revenue, growth_rate, performance", "Tables: sales, products, customers"],
+                        ["Database: sales_warehouse", "Records: 1,247,392 transactions", "Products: 2,847 unique SKUs", "Date Range: 2024-10-01 to 2024-12-31"],
+                        ["Q4 Revenue: $2.4M (+12.3% vs Q3)", "Top Category: Electronics ($892K)", "Growth Leader: Laptops (+34.5%)", "Seasonal Peak: Black Friday week"],
+                        ["Key Insight: Holiday demand drove 67% of Q4 growth", "Top Product: MacBook Air (15% of revenue)", "Recommendation: Increase laptop inventory", "Trend: Mobile accessories declining (-8%)"],
+                        ["Charts: Revenue trend, Product ranking", "Tables: Top 20 products, Category breakdown", "Sections: Executive summary, Detailed analysis", "Export: PDF, Excel, Interactive dashboard"]
+                    ],
+                    // Question 2: Profit margins by category
+                    [
+                        ["Entities: profit_margins, categories, quarterly", "Time Period: Q4 2024", "Metrics: gross_margin, net_margin, COGS", "Tables: financials, product_categories"],
+                        ["Database: financial_warehouse", "Records: 847,235 cost entries", "Categories: 12 major categories", "Cost Sources: Manufacturing, shipping, overhead"],
+                        ["Electronics: 24.5% margin (+2.1%)", "Clothing: 45.2% margin (-1.3%)", "Home & Garden: 31.8% margin", "Highest COGS: Automotive parts"],
+                        ["Best Margins: Luxury goods (67.3%)", "Lowest: Groceries (8.2%)", "Opportunity: Optimize electronics sourcing", "Alert: Clothing margins declining"],
+                        ["Charts: Margin comparison, Cost breakdown", "Tables: Category performance, Trend analysis", "Sections: Margin analysis, Cost optimization", "Export: Financial dashboard, Excel report"]
+                    ],
+                    // Question 3: YoY performance comparison
+                    [
+                        ["Entities: performance, comparison, YoY", "Time Period: Q4 2024 vs Q4 2023", "Metrics: growth_rate, variance, trends", "Tables: sales_history, yearly_comparison"],
+                        ["Database: historical_data", "Records: 2,394,847 transactions (2 years)", "Comparison: Q4 2024 vs Q4 2023", "Currency: USD, adjusted for inflation"],
+                        ["YoY Growth: +18.7% revenue increase", "Q4 2024: $2.4M vs Q4 2023: $2.02M", "Unit Sales: +12.3% increase", "Customer Count: +8.9% new customers"],
+                        ["Strong Growth: Online sales (+43.2%)", "Declining: In-store sales (-5.7%)", "New Markets: International +127%", "Customer Retention: 89.4% (vs 87.1%)"],
+                        ["Charts: YoY comparison, Growth trends", "Tables: Monthly breakdown, Channel analysis", "Sections: Growth drivers, Market analysis", "Export: Executive summary, Detailed comparison"]
+                    ],
+                    // Question 4: Customer segments and revenue growth
+                    [
+                        ["Entities: customer_segments, revenue_growth", "Time Period: Q4 2024", "Metrics: CLV, segment_revenue, growth_rate", "Tables: customers, segments, transactions"],
+                        ["Database: customer_analytics", "Records: 89,247 unique customers", "Segments: 8 behavioral segments", "Profiles: Demographics, purchase history"],
+                        ["Premium Customers: 23% of revenue", "Growing Segment: Young professionals (+45%)", "Declining: Price-sensitive segment (-12%)", "New Customer Value: $127 avg order"],
+                        ["High Growth: Tech enthusiasts (+67%)", "Opportunity: Senior market untapped", "Loyalty: Premium customers 3.2x value", "Churn Risk: 15% of mid-tier customers"],
+                        ["Charts: Segment performance, Growth matrix", "Tables: Customer analysis, Segment breakdown", "Sections: Segment insights, Growth strategy", "Export: Customer dashboard, Segment report"]
+                    ],
+                    // Question 5: Inventory turnover analysis
+                    [
+                        ["Entities: inventory_turnover, products, rates", "Time Period: Q4 2024", "Metrics: turnover_rate, stock_levels, velocity", "Tables: inventory, products, sales_velocity"],
+                        ["Database: inventory_management", "Records: 2,847 SKUs tracked", "Warehouses: 5 locations", "Stock Value: $1.2M current inventory"],
+                        ["Avg Turnover: 6.2x per quarter", "Fast Movers: Electronics (8.9x)", "Slow Movers: Seasonal items (2.1x)", "Overstock: $125K in slow inventory"],
+                        ["Optimal Turnover: Laptops (12.3x)", "Underperforming: Winter clothing (1.4x)", "Opportunity: Reduce slow stock by 30%", "Forecast: Increase fast-mover inventory"],
+                        ["Charts: Turnover rates, Stock velocity", "Tables: Product performance, Inventory health", "Sections: Turnover analysis, Optimization", "Export: Inventory dashboard, Stock report"]
+                    ]
+                ];
+                
+                this.currentQuestionIndex = 0;
+                this.questionElement = document.getElementById('current-question');
+                this.init();
+            }
+            
+            init() {
+                setTimeout(() => {
+                    this.animateCards();
+                }, 1500);
+            }
+            
+            updateQuestion() {
+                this.questionElement.style.opacity = '0';
+                setTimeout(() => {
+                    this.questionElement.textContent = this.questions[this.currentQuestionIndex];
+                    this.updateSampleData();
+                    this.questionElement.style.opacity = '1';
+                }, 200);
+            }
+            
+            updateSampleData() {
+                const currentSamples = this.sampleData[this.currentQuestionIndex];
+                for (let i = 0; i < 5; i++) {
+                    const sampleElement = document.getElementById(`sample-${i + 1}`);
+                    if (sampleElement) {
+                        const sampleItems = currentSamples[i];
+                        sampleElement.innerHTML = sampleItems.map(item => `
+                            <div class="sample-item">
+                                <div class="sample-bullet"></div>
+                                <div class="sample-text">${item}</div>
+                            </div>
+                        `).join('');
+                    }
                 }
-            }, 100);
-        });
-    }
-
-    async function runAnimation() {
-        while (true) {
-            showScene(scene1);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            animateWords();
-            await new Promise(resolve => setTimeout(resolve, 3500));
-            hideScene(scene1);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            showScene(scene2);
-            await animateProgress();
-            await new Promise(resolve => setTimeout(resolve, 500));
-            hideScene(scene2);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            updateProgress(0);
+            }
+            
+            async animateCards() {
+                for (let i = 0; i < this.events.length; i++) {
+                    const event = this.events[i];
+                    const eventElement = document.getElementById(event.id);
+                    
+                    // Activate current card
+                    eventElement.classList.add('active');
+                    
+                    // Wait for duration
+                    await new Promise(resolve => setTimeout(resolve, event.duration));
+                    
+                    // Complete the card
+                    eventElement.classList.remove('active');
+                    eventElement.classList.add('completed');
+                    
+                    // Replace spinner with checkmark
+                    const spinner = eventElement.querySelector('.spinner');
+                    if (spinner) {
+                        spinner.outerHTML = '<div class="checkmark">✓</div>';
+                    }
+                    
+                    // Wait before moving to bottom
+                    await new Promise(resolve => setTimeout(resolve, 600));
+                    
+                    // Move to bottom of stack
+                    this.moveToBottom(eventElement);
+                    
+                    // Reorder remaining cards
+                    this.reorderCards(i + 1);
+                    
+                    // Wait before next iteration
+                    await new Promise(resolve => setTimeout(resolve, 400));
+                }
+                
+                // Add transition effect before switching questions
+                this.element.classList.add('transitioning');
+                
+                setTimeout(() => {
+                    this.currentQuestionIndex = (this.currentQuestionIndex + 1) % this.questions.length;
+                    this.updateQuestion();
+                    this.resetCards();
+                    
+                    // Remove transition effect
+                    this.element.classList.remove('transitioning');
+                    
+                    setTimeout(() => {
+                        this.animateCards();
+                    }, 300);
+                }, 800);
+            }
+            
+            moveToBottom(card) {
+                card.classList.add('move-to-bottom');
+                setTimeout(() => {
+                    card.style.visibility = 'hidden';
+                }, 400);
+            }
+            
+            reorderCards(fromIndex) {
+                // Move all remaining cards up in the stack
+                for (let i = fromIndex; i < this.items.length; i++) {
+                    const item = this.items[i];
+                    if (!item.classList.contains('completed')) {
+                        const newPosition = i - fromIndex;
+                        const translateY = newPosition * 8;
+                        const scale = 1 - (newPosition * 0.02);
+                        const zIndex = this.items.length - newPosition;
+                        
+                        item.style.transform = `translateY(${translateY}px) scale(${scale})`;
+                        item.style.zIndex = zIndex;
+                    }
+                }
+            }
+            
+            resetCards() {
+                this.items.forEach((item, index) => {
+                    item.classList.remove('active', 'completed', 'move-to-bottom');
+                    item.style.visibility = 'visible';
+                    
+                    // Reset to original stacking position
+                    const translateY = index * 8;
+                    const scale = 1 - (index * 0.02);
+                    const zIndex = this.items.length - index;
+                    
+                    item.style.transform = `translateY(${translateY}px) scale(${scale})`;
+                    item.style.zIndex = zIndex;
+                    
+                    // Reset spinner
+                    const checkmark = item.querySelector('.checkmark');
+                    if (checkmark) {
+                        checkmark.outerHTML = '<div class="spinner"></div>';
+                    }
+                });
+            }
         }
-    }
-
-    runAnimation();
-</script>
+        
+        // Initialize the stack cards effect
+        const stackContainer = document.querySelector('.stack-cards');
+        if (stackContainer) {
+            new StackCards(stackContainer);
+        }
+    </script>
 </body>
 </html>

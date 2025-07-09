@@ -9,15 +9,18 @@ import { ref, reactive, watch, nextTick, triggerRef } from 'vue'
 import { parseDBConfig } from "~/composables/parsing";
 import { getAPIServerURL } from "~/composables/server";
 import Card from 'primevue/card';
-import {SSEService} from "~/core/streaming/sse";
 import { useSession } from '@clerk/vue'
 import { useThreadStorage } from '~/composables/useThreadStorage'
 import type { Thread } from '~/types/threads'
 import { toast } from 'vue-sonner'
-import { MessageSquare, Loader2 } from 'lucide-vue-next'
+import { MessageSquare, Loader2, Copy } from 'lucide-vue-next'
 import { Badge } from '~/components/ui/badge'
 import ConversationSkeleton from '~/components/Conversations/ConversationSkeleton.vue'
 import SubmitButton from '~/components/ui/submit-button/SubmitButton.vue'
+import StreamingContainer from '~/components/Reasoning/StreamingContainer.vue'
+import { useStreaming } from '~/composables/useStreaming'
+import { useClipboard } from '@vueuse/core'
+import { Button } from '@/components/ui/button'
 
 // Get thread ID from route params
 const route = useRoute()
@@ -37,7 +40,9 @@ const connection = reactive({
 let model_params: MODEL_CONFIG = reactive({
   name: "", api_key: ""
 });
-const sseService = ref<SSEService | null>(null);
+
+// Use the new streaming composable
+const streaming = useStreaming();
 
 // Thread management
 const { 
@@ -53,10 +58,9 @@ const {
 // Use the global current thread context
 const { currentThread, setCurrentThread } = useCurrentThread();
 
-// Copy all the existing conversation logic from index.vue
+// Question input handling
 let current_question = ref('');
 let last_question = ref('');
-const streamMessages = ref<any[]>([])
 
 const update_question = (new_question: string) => {
   console.log('📝 Text input updated:', new_question);
@@ -66,6 +70,7 @@ const update_question = (new_question: string) => {
 const messages: Array<ConversationMessage> = reactive([]);
 const current_message = ref<ConversationMessage | null>(null);
 
+// Use streaming state instead of local state
 let isAgentThinking = ref(false);
 const isLoadingThread = ref(true);
 const isLoadingMessages = ref(false);
@@ -111,328 +116,43 @@ const update_message_stream = async (message: ConversationMessage) => {
   console.log("Updated messages array:", messages);
 };
 
-// Create a ref to hold the cumulative stream context
-const cumulativeStreamResponse = ref<StreamResponse>(new StreamResponse(null));
-
-// Function to reset the stream context
+// Function to reset the stream context (now simplified with new composables)
 const resetStreamState = () => {
-  cumulativeStreamResponse.value = new StreamResponse(null);
+  streaming.stateManager.resetState();
 };
 
-// Enhanced node-specific data processing
-const processNodeSpecificData = (nodeOutput: NodeExecutionOutput) => {
-  const nodeName = nodeOutput.name;
-  const data = nodeOutput.data;
+// Watch for streaming state changes and update current message
+watch(() => streaming.state, (newState) => {
+  if (current_message.value && newState.streamStarted) {
+    // Convert the new unified state to the legacy StreamResponse format for backward compatibility
+    const legacyStream = new StreamResponse({
+      nodeOutputs: newState.thinkingSteps.map(step => ({
+        type: 'assistant:node:output',
+        name: step.agentName || 'unknown',
+        data: { content: typeof step.content === 'string' ? step.content : JSON.stringify(step.content, null, 2) },
+        occurred_at: step.timestamp
+      }))
+    });
   
-  // Handle stream termination
-  if (nodeName === 'stream_termination' || nodeName === 'conversation_complete') {
-    try {
-      console.log('Stream terminated:', data);
-      
-      // If current message exists, mark it as complete
-      if (current_message.value) {
+    // Update the current message with the new stream data
+    current_message.value.stream = legacyStream;
+    
+    
+    // Update message state based on streaming state
+    if (newState.error) {
+      current_message.value.state = ConversationState.ERROR;
+      current_message.value.error = newState.error;
+    } else if (!newState.isStreaming && newState.streamStarted) {
         current_message.value.state = ConversationState.COMPLETED;
         const currentAttempt = current_message.value.attempts?.[current_message.value.attempts.length - 1];
         if (currentAttempt) {
           currentAttempt.result = ConversationState.COMPLETED;
         }
-        update_message_stream(current_message.value);
-      }
-      
       isAgentThinking.value = false;
       current_question.value = ''; // Clear the question input
-      return;
-    } catch (error) {
-      console.error('Error processing termination data:', error);
     }
-  }
-  
-  // Handle both string and structured data
-  let structuredData: NodeExecutionData | null = null;
-  if (typeof data === 'string') {
-    try {
-      structuredData = JSON.parse(data);
-    } catch {
-      // If it's not JSON, treat as simple string content
-      structuredData = { content: data };
-    }
-  } else {
-    structuredData = data as NodeExecutionData;
-  }
-
-  // Basic node processing - can be enhanced as needed
-  console.log('Processing node:', nodeName, 'with data:', structuredData);
-};
-
-// Watch for new stream messages with enhanced processing
-watch(streamMessages, (newMessages) => {
-  console.log('🎯 Watch function triggered! Array length:', newMessages.length);
-  const newVal = newMessages;
-  
-  if (newVal && newVal.length > 0) {
-    const latestMessage = newVal[newVal.length - 1];
-    console.log('🎯 Latest message type:', latestMessage?.type);
-    
-    try {
-      if (typeof latestMessage === 'string' && latestMessage === 'pong') {
-        return;
-      }
-
-      const message = latestMessage as any as NodeExecutionOutput;
-      console.log('🔄 Frontend received event:', message.type, message);
-
-      // Handle different event types
-      if (message.type === 'assistant:node:output') {
-        const nodeOutput: NodeExecutionOutput = {
-          type: message.type,
-          name: message.name,
-          data: message.data,
-          occurred_at: message.occurred_at
-        };
-
-        // Add the nodeOutput to the cumulativeStreamResponse
-        if (!cumulativeStreamResponse.value.nodeOutputs) {
-          cumulativeStreamResponse.value.nodeOutputs = [];
-        }
-        cumulativeStreamResponse.value.nodeOutputs.push(nodeOutput);
-
-        // Enhanced processing based on node type
-        processNodeSpecificData(nodeOutput);
-
-        // Update the current message's stream
-        if (current_message.value) {
-          // Ensure the stream and nodeOutputs array exist
-          if (!current_message.value.stream) {
-            current_message.value.stream = new StreamResponse(null);
-          }
-          if (!current_message.value.stream.nodeOutputs) {
-            current_message.value.stream.nodeOutputs = [];
-          }
-          
-          // Add the new node output directly to the reactive array
-          current_message.value.stream.nodeOutputs.push(nodeOutput);
-          
-          // Also update other stream properties from cumulative response
-          Object.assign(current_message.value.stream, {
-            agentOutputs: cumulativeStreamResponse.value.agentOutputs,
-            supervisorDecisions: cumulativeStreamResponse.value.supervisorDecisions,
-            agentHandoffs: cumulativeStreamResponse.value.agentHandoffs,
-            currentAgent: cumulativeStreamResponse.value.currentAgent,
-            agentProgress: cumulativeStreamResponse.value.agentProgress,
-            explorationStatus: cumulativeStreamResponse.value.explorationStatus,
-            circuitBreakerStatus: cumulativeStreamResponse.value.circuitBreakerStatus,
-            resultAnalysis: cumulativeStreamResponse.value.resultAnalysis
-          });
           
           update_message_stream(current_message.value);
-        }
-      }
-      // Handle agent coordination events
-      else if (message.type === 'assistant:agent:output') {
-        const agentOutput: AgentCoordinationOutput = {
-          type: message.type,
-          name: message.name,
-          data: message.data,
-          occurred_at: message.occurred_at,
-          node_equivalent: message.node_equivalent
-        };
-
-        // Add to agent outputs in stream response
-        if (!cumulativeStreamResponse.value.agentOutputs) {
-          cumulativeStreamResponse.value.agentOutputs = [];
-        }
-        cumulativeStreamResponse.value.agentOutputs.push(agentOutput);
-
-        // Update agent progress if available
-        if (message.data?.agent_progress) {
-          cumulativeStreamResponse.value.agentProgress = message.data.agent_progress;
-        }
-
-        // Update current agent if available
-        if (message.data?.agent_name) {
-          cumulativeStreamResponse.value.currentAgent = message.data.agent_name;
-        }
-
-        // Update objectives status if available
-        if (message.data?.objectives_status) {
-          cumulativeStreamResponse.value.resultAnalysis = {
-            objectivesMet: message.data.objectives_status.overall_status === 'complete',
-            insights: [],
-            alternatives: [],
-            nextSteps: ''
-          };
-        }
-
-        // Convert agent output to familiar node output for backward compatibility
-        const compatibleNodeOutput: NodeExecutionOutput = {
-          type: 'assistant:node:output',
-          name: agentOutput.node_equivalent || cumulativeStreamResponse.value.getFamiliarNodeName(message.data?.agent_name || message.name),
-          data: message.data,
-          occurred_at: message.occurred_at
-        };
-
-        if (!cumulativeStreamResponse.value.nodeOutputs) {
-          cumulativeStreamResponse.value.nodeOutputs = [];
-        }
-        cumulativeStreamResponse.value.nodeOutputs.push(compatibleNodeOutput);
-
-        // Process as node data for existing UI components
-        processNodeSpecificData(compatibleNodeOutput);
-
-        // Update the current message's stream
-        if (current_message.value) {
-          // Create a new stream object to trigger reactivity
-          current_message.value.stream = { ...cumulativeStreamResponse.value };
-          
-          // Force reactivity update
-          triggerRef(current_message);
-          
-          update_message_stream(current_message.value);
-        }
-      }
-      // Handle supervisor decisions
-      else if (message.type === 'supervisor:decision') {
-        if (!cumulativeStreamResponse.value.supervisorDecisions) {
-          cumulativeStreamResponse.value.supervisorDecisions = [];
-        }
-        cumulativeStreamResponse.value.supervisorDecisions.push(message.data);
-
-        // Update the current message's stream
-        if (current_message.value) {
-          // Create a new stream object to trigger reactivity
-          current_message.value.stream = { ...cumulativeStreamResponse.value };
-          
-          // Force reactivity update
-          triggerRef(current_message);
-          
-          update_message_stream(current_message.value);
-        }
-      }
-      // Handle agent handoffs
-      else if (message.type === 'agent:handoff') {
-        if (!cumulativeStreamResponse.value.agentHandoffs) {
-          cumulativeStreamResponse.value.agentHandoffs = [];
-        }
-        cumulativeStreamResponse.value.agentHandoffs.push(message.data);
-
-        // Update the current message's stream
-        if (current_message.value) {
-          // Create a new stream object to trigger reactivity
-          current_message.value.stream = { ...cumulativeStreamResponse.value };
-          
-          // Force reactivity update
-          triggerRef(current_message);
-          
-          update_message_stream(current_message.value);
-        }
-      }
-      // Handle thread info events (these are informational)
-      else if (message.type === 'thread_info') {
-        console.log('📄 Thread info received:', message);
-        // Just log these, no need to update UI
-      }
-      // Handle agent tool invocation
-      else if (message.type === 'agent:tool:invoke') {
-        // Treat as a node output for display purposes
-        const nodeOutput: NodeExecutionOutput = {
-          type: 'assistant:node:output',
-          name: message.name, // Tool name
-          data: message.data, // Tool call data
-          occurred_at: message.occurred_at
-        };
-
-        if (!cumulativeStreamResponse.value.nodeOutputs) {
-          cumulativeStreamResponse.value.nodeOutputs = [];
-        }
-        cumulativeStreamResponse.value.nodeOutputs.push(nodeOutput);
-        processNodeSpecificData(nodeOutput);
-
-        if (current_message.value) {
-          if (!current_message.value.stream) {
-            current_message.value.stream = new StreamResponse(null);
-          }
-          if (!current_message.value.stream.nodeOutputs) {
-            current_message.value.stream.nodeOutputs = [];
-          }
-          current_message.value.stream.nodeOutputs.push(nodeOutput);
-          update_message_stream(current_message.value);
-        }
-      }
-      // Handle agent text streaming
-      else if (message.type === 'agent:stream:output') {
-        console.log('🔄 Processing agent:stream:output event:', message);
-        
-        // Create a node output for the analysis steps section
-        const nodeOutput: NodeExecutionOutput = {
-          type: 'assistant:node:output',
-          name: message.name, // Agent name (e.g., QueryGenerator, DataAnalyst)
-          data: message.data, // The content data
-          occurred_at: message.occurred_at
-        };
-
-        if (!cumulativeStreamResponse.value.nodeOutputs) {
-          cumulativeStreamResponse.value.nodeOutputs = [];
-        }
-        cumulativeStreamResponse.value.nodeOutputs.push(nodeOutput);
-        processNodeSpecificData(nodeOutput);
-
-        if (current_message.value) {
-          // For the chat message content, format the JSON nicely if it's JSON
-          let displayContent = message.data.content;
-          try {
-            const parsedContent = JSON.parse(message.data.content);
-            // If it's a valid JSON object, format it nicely
-            displayContent = JSON.stringify(parsedContent, null, 2);
-          } catch (e) {
-            // If it's not JSON, use as-is
-            displayContent = message.data.content;
-          }
-          
-          if (typeof current_message.value.content !== 'string') {
-            current_message.value.content = '';
-          }
-          // Append formatted content to the current message
-          current_message.value.content += displayContent + '\n\n';
-          console.log('📝 Updated message content:', current_message.value.content);
-          
-          // Also update the stream with the node output
-          if (!current_message.value.stream) {
-            current_message.value.stream = new StreamResponse(null);
-          }
-          current_message.value.stream = { ...cumulativeStreamResponse.value };
-          
-          update_message_stream(current_message.value);
-        } else {
-          console.warn('⚠️ No current_message.value available for agent:stream:output');
-        }
-      }
-      // Handle agent lifecycle events
-      else if (message.type === 'agent:start' || message.type === 'agent:end') {
-        if (!cumulativeStreamResponse.value.agentProgress) {
-          cumulativeStreamResponse.value.agentProgress = [];
-        }
-        cumulativeStreamResponse.value.agentProgress.push({
-          agent_name: message.name,
-          status: message.type === 'agent:start' ? 'starting' : 'finished',
-          description: message.data.description,
-        });
-        if (message.type === 'agent:start') {
-          cumulativeStreamResponse.value.currentAgent = message.name;
-        }
-        if (current_message.value) {
-          current_message.value.stream = { ...cumulativeStreamResponse.value };
-          triggerRef(current_message);
-          update_message_stream(current_message.value);
-        }
-      }
-      // Handle unknown event types
-      else {
-        console.warn('Unknown message type:', message.type, 'Full message:', message);
-        // Don't treat unknown types as errors anymore, just log them
-      }
-    } catch (error) {
-      console.error('Error processing message:', error, 'Raw message:', latestMessage);
-    }
   }
 }, { deep: true });
 
@@ -520,50 +240,18 @@ async function ask_question(retry: boolean = false) {
   isAgentThinking.value = true;
 
   try {
-    console.log("🔐 Getting auth token...");
-    const user_auth_token = await window.Clerk?.session?.getToken();
-    
-    if (!user_auth_token) {
-      throw new Error('Authentication token not available');
-    }
+    console.log("🚀 Starting stream with new composable");
 
-    console.log("✅ Auth token obtained");
-
-    // Clean up any existing SSE connection
-    if (sseService.value) {
-      console.log("🧹 Cleaning up existing SSE connection");
-      sseService.value.disconnect();
-    }
-
-    const requestPayload = {
-      question: qn,
-      model: model_params,
-      connection: parseDBConfig(conn_details),
-      stream: true,
-      use_supervisor: currentAnalysisMode.value === 'supervisor',
-      ...(currentThread.value && { thread_id: currentThread.value.id }),
-      message_metadata: {
-        source: 'conversation_ui',
-        timestamp: new Date().toISOString(),
-        analysis_mode: currentAnalysisMode.value,
-        ...(currentThread.value && { thread_title: currentThread.value.metadata?.title })
-      }
-    };
-
-
-    sseService.value = new SSEService(`${getAPIServerURL()}/api/v1/assistants`, user_auth_token, {
-      body: requestPayload
+    // Use the new streaming composable
+    await streaming.startStream({
+      threadId: currentThread.value?.id || threadId,
+      message: qn,
+      modelParams: model_params,
+      connectionDetails: parseDBConfig(conn_details),
+      useSupervisor: currentAnalysisMode.value === 'supervisor'
     });
 
-    sseService.value.onMessage((sse_event) => {
-      console.log('📨 Pushing event to streamMessages:', sse_event.type, sse_event);
-      // Instead of pushing to the array, create a new array to trigger reactivity
-      streamMessages.value = [...streamMessages.value, sse_event];
-      console.log('📨 streamMessages length now:', streamMessages.value.length);
-    });
-
-    await sseService.value.connect();
-    console.log('✅ SSE Connection established successfully');
+    console.log('✅ Stream started successfully');
 
   } catch (error: any) {
     console.error('❌ Error setting up SSE connection:', error);
@@ -584,12 +272,8 @@ async function ask_question(retry: boolean = false) {
 function abort_processing() {
   console.log('🛑 User requested to abort processing');
   
-  // Disconnect the SSE service - this will abort the underlying fetch request
-  if (sseService.value) {
-    console.log('🧹 Disconnecting SSE service');
-    sseService.value.disconnect();
-    sseService.value = null;
-  }
+  // Use the new streaming composable to stop the stream
+  streaming.stopStream();
   
   // Reset the thinking context immediately
   isAgentThinking.value = false;
@@ -622,7 +306,6 @@ onMounted(async () => {
       const dbConfig = JSON.parse(storedDbConfig)
       if (dbConfig && Object.keys(dbConfig).length > 0) {
         conn_details = dbConfig
-        console.log('Loaded database config:', dbConfig)
       }
     } catch (error) {
       console.error('Error parsing stored database config:', error)
@@ -637,7 +320,6 @@ onMounted(async () => {
       if (modelConfig && Object.keys(modelConfig).length > 0) {
         model_params.name = modelConfig.name || ''
         model_params.api_key = modelConfig.api_key || ''
-        console.log('Loaded model config:', modelConfig)
       }
     } catch (error) {
       console.error('Error parsing stored model config:', error)
@@ -872,6 +554,53 @@ const handleStartNewQuestion = (question: string) => {
   ask_question();
 };
 
+// Format time for display
+const formatTime = (time: Date) => {
+  return time.toLocaleTimeString();
+};
+
+// Copy functionality with toast
+const { copy } = useClipboard();
+
+const copyQuestion = async (question: string) => {
+  try {
+    await copy(question);
+    toast.success('Question Copied!', {
+      description: 'The question has been copied to your clipboard.',
+    });
+  } catch (err) {
+    toast.error('Copy Failed', {
+      description: 'Failed to copy question to clipboard. Please try again.',
+    });
+  }
+};
+
+// Convert node outputs to ReasoningStep events
+const convertNodeOutputsToEvents = (nodeOutputs: any[]) => {
+  if (!nodeOutputs || !Array.isArray(nodeOutputs)) return [];
+  
+  return nodeOutputs.map((output, index) => {
+    let type: 'thought' | 'tool_call' | 'tool_output' | 'agent_output' = 'thought';
+    
+    if (output.type?.includes('tool')) {
+      type = 'tool_output';
+    } else if (output.type?.includes('agent')) {
+      type = 'agent_output';
+    }
+    
+    return {
+      id: `node-${index}-${output.occurred_at || Date.now()}`,
+      type,
+      title: output.name || 'Node Output',
+      content: output.data?.content || output.data || '',
+      status: 'complete' as const,
+      agentName: output.data?.agent_name || undefined,
+      timestamp: output.occurred_at || new Date().toISOString(),
+      progress: output.data?.progress || undefined
+    };
+  });
+};
+
 // Analysis mode handling functions
 const handleModeChange = (mode: 'linear' | 'supervisor') => {
   currentAnalysisMode.value = mode;
@@ -934,11 +663,71 @@ const currentAnalysisMode = ref<'linear' | 'supervisor'>('linear');
             
             <!-- Loaded Content -->
             <div v-else>
-              <ConversationsContainer :conversations="messages" :isThinking="isAgentThinking"
-                                      :currentMessage="current_message"
-                                      @retry="ask_question(true)"
-                                      @start-new-question="handleStartNewQuestion"
-                                      @mode-changed="handleModeChange"/>
+              <!-- Show streaming interface for all messages -->
+              <div class="space-y-6">
+                <!-- Historical conversations -->
+                <div v-for="message in messages" :key="message.id" class="message-container">
+                  <!-- User Question -->
+                  <div v-if="!message.isAgent" class="user-message mb-4 p-4 bg-blue-50 rounded-lg">
+                    <div class="flex items-start space-x-3">
+                      <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                        U
+                      </div>
+                      <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-900">You</p>
+                        <div class="mt-1 text-gray-700">{{ message.message }}</div>
+                      </div>
+                      <Button variant="ghost" size="sm" class="h-8 w-8 p-0 text-gray-500 hover:text-gray-700" @click="copyQuestion(message.message)">
+                        <Copy class="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <!-- Agent Response -->
+                  <div v-else class="agent-response">
+                    <div class="flex items-start space-x-3 mb-4">
+                      <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                        AI
+                      </div>
+                      <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-900">Assistant</p>
+                        <div class="mt-1 text-gray-600 text-sm">{{ formatTime(message.time) }}</div>
+                      </div>
+                    </div>
+                    
+                    <!-- Use StreamingContainer for agent responses -->
+                    <StreamingContainer 
+                      v-if="message.stream && message.stream.nodeOutputs"
+                      :events="convertNodeOutputsToEvents(message.stream.nodeOutputs)"
+                      @start-new-question="handleStartNewQuestion"
+                    />
+                    
+                    <!-- Fallback for messages without stream data -->
+                    <div v-else class="p-4 border rounded-lg bg-gray-50">
+                      <p class="text-gray-700">{{ message.message }}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Current streaming message -->
+                <div v-if="streaming.state.streamStarted && current_message" class="current-streaming">
+                  <div class="flex items-start space-x-3 mb-4">
+                    <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      AI
+                    </div>
+                    <div class="flex-1">
+                      <p class="text-sm font-medium text-gray-900">Assistant</p>
+                      <div class="mt-1 text-gray-600 text-sm">Analyzing...</div>
+                    </div>
+                  </div>
+                  
+                  <StreamingContainer 
+                    :events="streaming.state.thinkingSteps"
+                    :final-answer="streaming.state.finalAnswer || undefined"
+                    @start-new-question="handleStartNewQuestion"
+                  />
+                </div>
+              </div>
             </div>
             
             <!-- Input Area - Always Show -->

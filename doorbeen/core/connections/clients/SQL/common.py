@@ -45,6 +45,31 @@ class CommonSQLClient(DatabaseClient):
         except DatabaseError as e:
             raise CSQLInvalidQuery(e)
 
+    async def validate_query(self, sql: str) -> bool:
+        """
+        Validate SQL query syntax by attempting to prepare it.
+        Returns True if valid, False if invalid.
+        """
+        try:
+            if self.client is None:
+                self.get_connection()
+            
+            # For most databases, we can validate by using EXPLAIN
+            # This checks syntax without actually executing the query
+            validation_sql = f"EXPLAIN {sql}"
+            
+            conn = self.client
+            result = conn.execute(text(validation_sql))
+            result.close()
+            return True
+            
+        except DatabaseError:
+            # If EXPLAIN fails, the query is likely invalid
+            return False
+        except Exception:
+            # For any other errors, assume invalid
+            return False
+
     def get_uri(self):
         dialect = self.credentials.dialect
         dialect_str = dialect.value

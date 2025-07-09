@@ -11,9 +11,8 @@ from doorbeen.core.assistants.analysis.sql.state import SQLAssistantState
 from doorbeen.core.assistants.analysis.sql.agents.data_analysis_agent import create_data_analysis_agent
 from doorbeen.core.assistants.analysis.sql.agents.query_generation_agent import create_query_generation_agent
 from doorbeen.core.assistants.analysis.sql.agents.result_processing_agent import create_result_processing_agent
-from doorbeen.core.assistants.analysis.sql.agents.objective_evaluation_agent import create_objective_evaluation_agent
 from doorbeen.core.assistants.analysis.sql.agents.finalization_agent import create_finalization_agent
-from doorbeen.core.assistants.analysis.sql.supervisor.handoff_tools import add_handoff_tools_to_agent
+# Handoff tools are automatically created by create_supervisor
 from doorbeen.core.assistants.analysis.sql.supervisor.tools import (
         get_objective_from_state,
         get_schema_context,
@@ -29,7 +28,10 @@ from doorbeen.core.assistants.analysis.sql.supervisor.tools import (
         set_error,
         add_handoff_context,
         get_current_status,
-        get_handoff_context
+        get_handoff_context,
+        check_query_execution_status,
+        classify_question_type,
+        answer_general_knowledge_question
     )
     
 
@@ -44,71 +46,93 @@ def create_sql_supervisor_graph(
     """Create and return the supervisor agent graph using LangGraph's create_supervisor."""
 
     # Create specialized agents using dedicated creation functions
+    # Note: create_supervisor automatically generates transfer tools based on agent names
     data_analysis_agent = create_data_analysis_agent(
         name="DataAnalyst",
         handler=handler
     )
-    add_handoff_tools_to_agent(data_analysis_agent)
     
     query_generation_agent = create_query_generation_agent(
         name="QueryGenerator", 
         handler=handler
     )
-    add_handoff_tools_to_agent(query_generation_agent)
     
     result_processing_agent = create_result_processing_agent(
         name="ResultProcessor",
         handler=handler
     )
-    add_handoff_tools_to_agent(result_processing_agent)
-    
-    objective_evaluation_agent = create_objective_evaluation_agent(
-        name="ObjectiveEvaluator",
-        handler=handler
-    )
-    add_handoff_tools_to_agent(objective_evaluation_agent)
-    
+
     finalization_agent = create_finalization_agent(
         name="Finalizer",
         handler=handler
     )
-    add_handoff_tools_to_agent(finalization_agent)
 
-    # Define supervisor instructions with objective-driven intelligence
+    # Define supervisor instructions with intelligent question classification
     supervisor_prompt = f"""
 You are an intelligent SQL Analysis Supervisor coordinating specialized agents to answer: "{question}"
 
-AGENTS AVAILABLE:
-- DataAnalyst: Schema exploration, data understanding, domain detection
-- QueryGenerator: SQL creation, validation, optimization, execution  
-- ResultProcessor: Data analysis, statistical insights, trend identification
-- ObjectiveEvaluator: Completion assessment, quality validation
-- Finalizer: Answer formatting, suggestions, follow-ups
+**CRITICAL WORKFLOW RULES:**
 
-INTELLIGENT ROUTING PRINCIPLES:
-1. Analyze the question complexity and data requirements
-2. Start with DataAnalyst ONLY if schema understanding is needed
-3. Route to QueryGenerator when ready to create/execute SQL
-4. Use ResultProcessor when you have data to analyze
-5. Call ObjectiveEvaluator to check if user's question is fully answered
-6. Use Finalizer only when all objectives are complete
+**STEP 1 - QUESTION CLASSIFICATION (MANDATORY FIRST STEP):**
+- ALWAYS start by using `classify_question_type` tool to determine if the question requires data analysis
+- This prevents unnecessary agent calls for general knowledge questions
 
-CRITICAL GUIDELINES:
-- Don't force a linear sequence - skip agents if their expertise isn't needed
-- Route based on current context and remaining objectives
-- Continue until the user's question is FULLY answered
-- Each agent should build on previous agents' work
-- Agents have free will in which tools to use - you only coordinate handoffs
-- Be efficient: don't repeat work that's already been done well
-- If simple questions can be answered quickly, do so - don't over-engineer
+**STEP 2 - ROUTING DECISION:**
+- **General Knowledge Questions**: Use `answer_general_knowledge_question` then provide the actual answer using your knowledge
+- **Data Analysis Questions**: Use the ONE-WAY agent workflow below
 
-OBJECTIVE TRACKING:
-- Continuously assess what parts of the user's question remain unanswered
-- Route to the most appropriate agent based on what's missing
-- Only finish when you're confident the user's question is comprehensively addressed
+**ONE-WAY AGENT WORKFLOW (NEVER GO BACKWARDS):**
+1. **DataAnalyst**: Schema exploration, query planning, sample data collection (ONCE ONLY)
+2. **QueryGenerator**: Draft-validate-execute workflow with zero-result intelligence (ONCE ONLY)
+3. **ResultProcessor**: Comprehensive data analysis and insight extraction (ONCE ONLY)
+4. **Finalizer**: Answer formatting (ONCE ONLY)
 
-Goal: Efficiently provide a complete, accurate answer to the user's question.
+**CRITICAL ROUTING RULES:**
+- **NEVER** route back to DataAnalyst once schema is available
+- **NEVER** route back to DataAnalyst after QueryGenerator has run
+- **NEVER** route back to DataAnalyst after query execution
+- **ALWAYS** use `check_query_execution_status` to see current progress before routing
+- **ALWAYS** move forward in the workflow: DataAnalyst → QueryGenerator → ResultProcessor → Finalizer
+
+**ROUTING DECISION LOGIC:**
+1. No schema context → `transfer_to_DataAnalyst` (FIRST TIME ONLY)
+2. Schema exists but no query/results → `transfer_to_QueryGenerator` (FIRST TIME ONLY)
+3. Query and results exist but no analysis → `transfer_to_ResultProcessor` (FIRST TIME ONLY)
+4. Analysis complete but no final answer → `transfer_to_Finalizer` (FIRST TIME ONLY)
+5. Final answer exists → COMPLETE
+
+**TOOLS AVAILABLE:**
+- `classify_question_type`: Classify if question needs data analysis
+- `answer_general_knowledge_question`: Mark as general knowledge and prepare for direct answer
+- `check_query_execution_status`: Check workflow progress and get detailed status
+- Agent transfer tools: `transfer_to_DataAnalyst`, `transfer_to_QueryGenerator`, `transfer_to_ResultProcessor`, `transfer_to_Finalizer`
+
+**WORKFLOW MONITORING:**
+- ALWAYS use `check_query_execution_status` before making routing decisions
+- This tool shows you the actual SQL query executed and results obtained
+- It provides clear routing guidance based on current workflow state
+
+**IMPORTANT NOTES:**
+- Each agent should only be called ONCE in the workflow
+- The workflow is ONE-WAY: DataAnalyst → QueryGenerator → Finalizer
+- Never go backwards in the workflow unless you think you are missing something that is required for the workflow to complete
+- Always check status before routing to see what has been completed
+
+**EXAMPLE WORKFLOW:**
+1. Use `classify_question_type` → data analysis required
+2. Use `check_query_execution_status` → no schema
+3. Use `transfer_to_DataAnalyst` → schema obtained
+4. Use `check_query_execution_status` → schema available, no query
+5. Use `transfer_to_QueryGenerator` → query executed, results obtained
+6. Use `check_query_execution_status` → results available, no analysis
+7. Use `transfer_to_ResultProcessor` → comprehensive analysis completed
+8. Use `check_query_execution_status` → analysis complete, no final answer
+9. Use `transfer_to_Finalizer` → final answer generated
+10. COMPLETE
+
+Goal: Provide accurate answers efficiently using the ONE-WAY workflow without backtracking.
 """
+
     supervisor_tools = [
         get_objective_from_state,
         get_schema_context,
@@ -124,7 +148,10 @@ Goal: Efficiently provide a complete, accurate answer to the user's question.
         set_error,
         add_handoff_context,
         get_current_status,
-        get_handoff_context
+        get_handoff_context,
+        check_query_execution_status,
+        classify_question_type,
+        answer_general_knowledge_question
     ]
 
 
@@ -134,7 +161,6 @@ Goal: Efficiently provide a complete, accurate answer to the user's question.
             data_analysis_agent,
             query_generation_agent,
             result_processing_agent,
-            objective_evaluation_agent,
             finalization_agent
         ],
         tools=supervisor_tools,

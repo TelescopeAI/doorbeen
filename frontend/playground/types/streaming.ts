@@ -104,6 +104,16 @@ export type StreamEvent =
     | AgentStart
     | AgentEnd;
 
+// Generic SSE event structure based on what we receive from the backend
+export interface SSEEvent {
+    type?: string;
+    event?: string;
+    name?: string;
+    data?: any;
+    occurred_at?: string;
+    [key: string]: any;
+}
+
 // Type definition for a tool invocation event
 export type AgentToolInvoke = {
     type: 'agent:tool:invoke';

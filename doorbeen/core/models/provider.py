@@ -184,7 +184,7 @@ class ModelProvider(TSModel):
         return [model for model, info in self.config.models.items() if capability in info.capabilities]
 
     def get_model_instance(self, model_name: str, api_key: Optional[str] = None,
-                           output_model: Optional[Type[TSModel]] = None,
+                           response_format: Optional[Type[TSModel]] = None,
                            plaintext: bool = False, **kwargs) -> ModelHandler:
         model_info = self.get_model_info(model_name)
         if not model_info:
