@@ -212,6 +212,38 @@ export const useThreadStorage = () => {
         }
     }
 
+    // Get agent lifecycle events for an assistant message
+    const getMessageAgentEvents = async (messageId: string): Promise<any> => {
+        isLoading.value = true
+        error.value = null
+        
+        try {
+            const response = await $fetch<any>(`${getAPIServerURL()}/api/v1/messages/${messageId}/agent-events`)
+            return response
+        } catch (err: any) {
+            error.value = err.message || 'Failed to get agent events'
+            throw err
+        } finally {
+            isLoading.value = false
+        }
+    }
+
+    // Get all events (node + agent lifecycle) for an assistant message
+    const getMessageAllEvents = async (messageId: string): Promise<any> => {
+        isLoading.value = true
+        error.value = null
+        
+        try {
+            const response = await $fetch<any>(`${getAPIServerURL()}/api/v1/messages/${messageId}/all-events`)
+            return response
+        } catch (err: any) {
+            error.value = err.message || 'Failed to get all events'
+            throw err
+        } finally {
+            isLoading.value = false
+        }
+    }
+
     // Helper functions
     const getThreadTitle = (thread: Thread): string => {
         return thread.metadata?.title || 
@@ -265,6 +297,8 @@ export const useThreadStorage = () => {
         getThreadMessages,
         getThreadSummary,
         getMessageNodeEvents,
+        getMessageAgentEvents,
+        getMessageAllEvents,
         setCurrentThread,
         initializeCurrentThread,
         

@@ -34,7 +34,7 @@ async def evaluate_objective_completion(
         # Automatically get objective from state.input
         objective = state["input"]
         
-            # Get handler from config
+                # Get handler from config
         configuration = config.get("configurable", {})
         handler: ModelHandler = configuration.get("handler")
         
@@ -163,33 +163,33 @@ async def suggest_next_steps(
         
         configuration = config.get("configurable", {})
         handler: ModelHandler = configuration.get("handler")
-    
+        
         if not handler:
-                error_event = {
-                    "type": "agent:error",
-                    "name": "ObjectiveEvaluation",
-                    "data": {
-                        "scope": "ObjectiveEvaluation",
-                        "description": "Model handler not available",
-                        "content": "❌ No model handler for next steps generation",
-                        "progress": 0
+                    error_event = {
+                        "type": "agent:error",
+                        "name": "ObjectiveEvaluation",
+                        "data": {
+                            "scope": "ObjectiveEvaluation",
+                            "description": "Model handler not available",
+                            "content": "❌ No model handler for next steps generation",
+                            "progress": 0
+                        }
                     }
-                }
+                    
+                    tool_message = ToolMessage(
+                        content="❌ Model handler not available",
+                        tool_call_id=tool_call_id
+                    )
+                    
+                    return Command(
+                        update={
+                            "messages": [tool_message],
+                            "agent_lifecycle_events": [start_progress_event, error_event],
+                            "error": {"type": "handler_error", "message": "Model handler not set"}
+                        }
+                    )
                 
-                tool_message = ToolMessage(
-                    content="❌ Model handler not available",
-                    tool_call_id=tool_call_id
-                )
-                
-                return Command(
-                    update={
-                        "messages": [tool_message],
-                        "agent_lifecycle_events": [start_progress_event, error_event],
-                        "error": {"type": "handler_error", "message": "Model handler not set"}
-                    }
-                )
-            
-        # Emit analysis progress
+            # Emit analysis progress
         analysis_progress_event = {
             "type": "agent:progress",
             "name": "ObjectiveEvaluation",
@@ -202,14 +202,14 @@ async def suggest_next_steps(
         }
 
         prompt = f"""
-        The user's objective has not yet been fully met. Based on the objective and the summary of findings so far, what are the next logical steps to take?
+    The user's objective has not yet been fully met. Based on the objective and the summary of findings so far, what are the next logical steps to take?
 
-        Objective: {objective}
-        Summary: {summary}
+    Objective: {objective}
+    Summary: {summary}
 
-        Suggest a list of concrete next steps.
-        """
-            
+    Suggest a list of concrete next steps.
+    """
+                
         response = await handler.model.ainvoke(prompt)
         
         # Emit completion progress
@@ -289,33 +289,33 @@ async def check_completeness(
         
         configuration = config.get("configurable", {})
         handler: ModelHandler = configuration.get("handler")
-    
+        
         if not handler:
-                error_event = {
-                    "type": "agent:error",
-                    "name": "ObjectiveEvaluation",
-                    "data": {
-                        "scope": "ObjectiveEvaluation",
-                        "description": "Model handler not available",
-                        "content": "❌ No model handler for completeness check",
-                        "progress": 0
+                    error_event = {
+                        "type": "agent:error",
+                        "name": "ObjectiveEvaluation",
+                        "data": {
+                            "scope": "ObjectiveEvaluation",
+                            "description": "Model handler not available",
+                            "content": "❌ No model handler for completeness check",
+                            "progress": 0
+                        }
                     }
-                }
+                    
+                    tool_message = ToolMessage(
+                        content="❌ Model handler not available",
+                        tool_call_id=tool_call_id
+                    )
+                    
+                    return Command(
+                        update={
+                            "messages": [tool_message],
+                            "agent_lifecycle_events": [start_progress_event, error_event],
+                            "error": {"type": "handler_error", "message": "Model handler not set"}
+                        }
+                    )
                 
-                tool_message = ToolMessage(
-                    content="❌ Model handler not available",
-                    tool_call_id=tool_call_id
-                )
-                
-                return Command(
-                    update={
-                        "messages": [tool_message],
-                        "agent_lifecycle_events": [start_progress_event, error_event],
-                        "error": {"type": "handler_error", "message": "Model handler not set"}
-                    }
-                )
-            
-        # Emit analysis progress
+            # Emit analysis progress
         analysis_progress_event = {
             "type": "agent:progress",
             "name": "ObjectiveEvaluation",
@@ -417,48 +417,48 @@ async def check_constraints(
         handler: ModelHandler = configuration.get("handler")
         
         if not handler:
-                error_event = {
-                    "type": "agent:error",
-                    "name": "ObjectiveEvaluation",
-                    "data": {
-                        "scope": "ObjectiveEvaluation",
-                        "description": "Model handler not available",
-                        "content": "❌ No model handler for constraint check",
-                        "progress": 0
+                    error_event = {
+                        "type": "agent:error",
+                        "name": "ObjectiveEvaluation",
+                        "data": {
+                            "scope": "ObjectiveEvaluation",
+                            "description": "Model handler not available",
+                            "content": "❌ No model handler for constraint check",
+                            "progress": 0
+                        }
                     }
-                }
+                    
+                    tool_message = ToolMessage(
+                        content="❌ Model handler not available",
+                        tool_call_id=tool_call_id
+                    )
+                    
+                    return Command(
+                        update={
+                            "messages": [tool_message],
+                            "agent_lifecycle_events": [start_progress_event, error_event],
+                            "error": {"type": "handler_error", "message": "Model handler not set"}
+                        }
+                    )
                 
-                tool_message = ToolMessage(
-                    content="❌ Model handler not available",
-                    tool_call_id=tool_call_id
-                )
-                
-                return Command(
-                    update={
-                        "messages": [tool_message],
-                        "agent_lifecycle_events": [start_progress_event, error_event],
-                        "error": {"type": "handler_error", "message": "Model handler not set"}
-                    }
-                )
-            
-            # Emit analysis progress
+                # Emit analysis progress
         analysis_progress_event = {
-            "type": "agent:progress",
-            "name": "ObjectiveEvaluation",
-            "data": {
-                "scope": "ObjectiveEvaluation",
-                "description": "Analyzing constraint adherence...",
-                "content": "🔍 Checking if specific requirements are met",
-                "progress": 50
+                "type": "agent:progress",
+                "name": "ObjectiveEvaluation",
+                "data": {
+                    "scope": "ObjectiveEvaluation",
+                    "description": "Analyzing constraint adherence...",
+                    "content": "🔍 Checking if specific requirements are met",
+                    "progress": 50
+                }
             }
-        }
 
         prompt = f"""
-        Original question: {question}
-        Analysis: {analysis}
+    Original question: {question}
+    Analysis: {analysis}
 
-        Are there any constraints or specific requirements in the question that have been addressed in the analysis?
-        """
+    Are there any constraints or specific requirements in the question that have been addressed in the analysis?
+    """
             
         response = await handler.model.ainvoke(prompt)
     
@@ -527,14 +527,46 @@ def objective_evaluation_pre_hook(state: Annotated[dict, InjectedState]) -> dict
 
 
 def objective_evaluation_post_hook(state: Annotated[dict, InjectedState]) -> dict:
-    """Post-model hook for objective evaluation agent - emits agent end event"""
+    """Post-model hook for objective evaluation agent - emits agent end event with contextual information"""
+    # Extract relevant information from state
+    is_complete = state.get("is_complete", False)
+    completeness_explanation = state.get("completeness_explanation", "")
+    constraints_check = state.get("constraints_check", "")
+    objective_evaluation = state.get("objective_evaluation", {})
+    
+    # Build contextual content
+    content_parts = ["🎯 Objective Evaluation Complete"]
+    
+    # Add completion status
+    completion_status = "✅ Complete" if is_complete else "⚠️ Needs attention"
+    content_parts.append(f"\n**Status:** {completion_status}")
+    
+    # Add completeness explanation summary
+    if completeness_explanation:
+        explanation_preview = completeness_explanation[:120] + "..." if len(completeness_explanation) > 120 else completeness_explanation
+        content_parts.append(f"**Assessment:** {explanation_preview}")
+    
+    # Add constraints check result
+    if constraints_check:
+        constraints_preview = constraints_check[:100] + "..." if len(constraints_check) > 100 else constraints_check
+        content_parts.append(f"\n**Constraints:** {constraints_preview}")
+    
+    # Add objective evaluation details if available
+    if objective_evaluation:
+        if isinstance(objective_evaluation, dict):
+            if "score" in objective_evaluation:
+                content_parts.append(f"**Objective Score:** {objective_evaluation['score']}")
+            if "summary" in objective_evaluation:
+                summary_preview = objective_evaluation["summary"][:100] + "..." if len(objective_evaluation["summary"]) > 100 else objective_evaluation["summary"]
+                content_parts.append(f"**Evaluation:** {summary_preview}")
+    
     event = {
         "type": "agent:end",
         "name": "ObjectiveEvaluation",
         "data": {
             "scope": "ObjectiveEvaluation",
             "description": "Assessed objective completion and identified next steps",
-            "content": "✅ Completed objective evaluation and assessment"
+            "content": "\n".join(content_parts)
         }
     }
     return {"agent_lifecycle_events": [event]} 

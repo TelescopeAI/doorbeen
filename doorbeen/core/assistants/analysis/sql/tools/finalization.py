@@ -31,7 +31,7 @@ async def create_final_summary(
                 "progress": 10
             }
         }
-        
+    
         configuration = config.get("configurable", {})
         handler: ModelHandler = configuration.get("handler")
     
@@ -68,6 +68,7 @@ async def create_final_summary(
         data_summary = state.get("data_summary", "")
         trends_and_patterns = state.get("trends_and_patterns", [])
         key_insights = state.get("key_insights", [])
+        recommendations = state.get("recommendations", [])
         query_strategy = state.get("query_strategy", "")
         database_dialect = state.get("database_dialect", "unknown")
         workflow_stage = state.get("workflow_stage", "")
@@ -129,6 +130,9 @@ IDENTIFIED TRENDS AND PATTERNS:
 
 KEY INSIGHTS:
 {chr(10).join(key_insights) if key_insights else "No key insights available"}
+
+RECOMMENDATIONS:
+{chr(10).join(recommendations) if recommendations else "No recommendations available"}
 
 SCHEMA CONTEXT:
 {json.dumps(schema_context, indent=2) if schema_context else "No schema context"}
@@ -255,11 +259,19 @@ async def generate_visualizations(
         # Extract comprehensive context from state
         user_question = state.get("input", "")
         data = state.get("execution_results", [])
-        query_plan = state.get("query_plan", {})
+        query_plan = state.get("query_plan", "")  # Now expecting text, not dict
         query_strategy = state.get("query_strategy", "")
         trends_and_patterns = state.get("trends_and_patterns", [])
         key_insights = state.get("key_insights", [])
-        temporal_aspects = query_plan.get("temporal_aspects", {}) if query_plan else {}
+        
+        # No need to extract temporal_aspects from query_plan since it's now text
+        # We can infer temporal aspects from the data structure and query strategy instead
+        has_temporal_data = False
+        if data and len(data) > 0:
+            # Check if any column names suggest temporal data
+            columns = list(data[0].keys()) if data else []
+            temporal_keywords = ['date', 'time', 'year', 'month', 'day', 'created', 'updated', 'timestamp']
+            has_temporal_data = any(any(keyword in col.lower() for keyword in temporal_keywords) for col in columns)
         
         # Emit analysis progress
         analysis_progress_event = {
@@ -298,7 +310,7 @@ Columns: {list(data[0].keys()) if data else []}
 Sample Data: {json.dumps(data[:3], indent=2) if data else "No data"}
 
 TEMPORAL ANALYSIS CONTEXT:
-{json.dumps(temporal_aspects, indent=2) if temporal_aspects else "No temporal context"}
+{"Data appears to have temporal components" if has_temporal_data else "No clear temporal patterns detected"}
 
 IDENTIFIED TRENDS AND PATTERNS:
 {chr(10).join(trends_and_patterns) if trends_and_patterns else "No trends identified"}
@@ -307,7 +319,7 @@ KEY INSIGHTS:
 {chr(10).join(key_insights) if key_insights else "No key insights available"}
 
 QUERY PLAN CONTEXT:
-{json.dumps(query_plan, indent=2) if query_plan else "No query plan available"}
+{query_plan if query_plan and query_plan != "" else "No query plan available"}
 
 VISUALIZATION REQUIREMENTS:
 1. Recommend specific chart types that best represent the data
@@ -708,6 +720,103 @@ Create questions that would provide additional value and insights to the user.
         )
 
 
+@tool
+async def notify_outputs(
+    config: Annotated[RunnableConfig, "Configuration"],
+    state: Annotated[dict, InjectedState],
+    tool_call_id: Annotated[str, InjectedToolCallId]
+) -> Command:
+    """Notify about the outputs and accomplishments of the finalization agent."""
+    
+    try:
+        # Extract relevant information from state
+        final_summary = state.get("final_summary", "")
+        final_answer = state.get("final_answer", "")
+        visualization_suggestions = state.get("visualization_suggestions", [])
+        follow_up_questions = state.get("follow_up_questions", [])
+        key_insights = state.get("key_insights", [])
+        recommendations = state.get("recommendations", [])
+        execution_results = state.get("execution_results", [])
+        
+        # Build contextual content
+        content_parts = ["📝 Final Report Complete"]
+        
+        # Add summary information
+        if final_summary:
+            summary_preview = final_summary[:150] + "..." if len(final_summary) > 150 else final_summary
+            content_parts.append(f"\n**Summary:** {summary_preview}")
+        
+        # Add deliverables information
+        deliverables = []
+        if final_answer:
+            deliverables.append("formatted answer")
+        if visualization_suggestions:
+            deliverables.append(f"{len(visualization_suggestions)} chart suggestions")
+        if follow_up_questions:
+            deliverables.append(f"{len(follow_up_questions)} follow-up questions")
+        
+        if deliverables:
+            content_parts.append(f"\n**Deliverables:** {', '.join(deliverables)}")
+        
+        # Add key findings summary
+        if key_insights:
+            content_parts.append(f"**Key Insights:** {len(key_insights)} actionable findings")
+        
+        if recommendations:
+            content_parts.append(f"**Recommendations:** {len(recommendations)} strategic suggestions")
+        
+        # Add data context
+        if execution_results:
+            content_parts.append(f"\n**Data Foundation:** Analysis based on {len(execution_results)} data points")
+        
+        # Create the notification event
+        notification_event = {
+            "type": "agent:end",
+            "name": "Finalization",
+            "data": {
+                "scope": "Finalization",
+                "description": "Generated final summary and formatted results for user",
+                "content": "\n".join(content_parts)
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content="✅ Finalization outputs notified",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [notification_event]
+            }
+        )
+        
+    except Exception as e:
+        error_event = {
+            "type": "agent:error",
+            "name": "Finalization",
+            "data": {
+                "scope": "Finalization",
+                "description": f"Output notification failed: {str(e)}",
+                "content": f"❌ Failed to notify outputs: {str(e)}",
+                "progress": 0
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content=f"❌ Output notification failed: {str(e)}",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [error_event]
+            }
+        )
+
+
 def finalization_pre_hook(state: Annotated[dict, InjectedState]) -> dict:
     """Pre-model hook for finalization agent - emits agent start event"""
     event = {
@@ -723,14 +832,54 @@ def finalization_pre_hook(state: Annotated[dict, InjectedState]) -> dict:
 
 
 def finalization_post_hook(state: Annotated[dict, InjectedState]) -> dict:
-    """Post-model hook for finalization agent - emits agent end event"""
+    """Post-model hook for finalization agent - emits agent end event with contextual information"""
+    # Extract relevant information from state
+    final_summary = state.get("final_summary", "")
+    final_answer = state.get("final_answer", "")
+    visualization_suggestions = state.get("visualization_suggestions", [])
+    follow_up_questions = state.get("follow_up_questions", [])
+    key_insights = state.get("key_insights", [])
+    recommendations = state.get("recommendations", [])
+    execution_results = state.get("execution_results", [])
+    
+    # Build contextual content
+    content_parts = ["📝 Final Report Complete"]
+    
+    # Add summary information
+    if final_summary:
+        summary_preview = final_summary[:150] + "..." if len(final_summary) > 150 else final_summary
+        content_parts.append(f"\n**Summary:** {summary_preview}")
+    
+    # Add deliverables information
+    deliverables = []
+    if final_answer:
+        deliverables.append("formatted answer")
+    if visualization_suggestions:
+        deliverables.append(f"{len(visualization_suggestions)} chart suggestions")
+    if follow_up_questions:
+        deliverables.append(f"{len(follow_up_questions)} follow-up questions")
+    
+    if deliverables:
+        content_parts.append(f"\n**Deliverables:** {', '.join(deliverables)}")
+    
+    # Add key findings summary
+    if key_insights:
+        content_parts.append(f"**Key Insights:** {len(key_insights)} actionable findings")
+    
+    if recommendations:
+        content_parts.append(f"**Recommendations:** {len(recommendations)} strategic suggestions")
+    
+    # Add data context
+    if execution_results:
+        content_parts.append(f"\n**Data Foundation:** Analysis based on {len(execution_results)} data points")
+    
     event = {
         "type": "agent:end",
         "name": "Finalization",
         "data": {
             "scope": "Finalization",
             "description": "Generated final summary and formatted results for user",
-            "content": "✅ Completed final report generation and analysis"
+            "content": "\n".join(content_parts)
         }
     }
     return {"agent_lifecycle_events": [event]} 

@@ -21,7 +21,8 @@ from doorbeen.core.assistants.analysis.sql.tools.query_generation import (
     execute_validated_query,
     get_table_sample_data,
     query_generation_pre_hook,
-    query_generation_post_hook
+    query_generation_post_hook,
+    notify_outputs
 )
 from doorbeen.core.assistants.analysis.sql.supervisor.tools import (
     get_objective_from_state,
@@ -50,6 +51,7 @@ You MUST follow this exact sequence:
 2. **generate_draft_query**: Create SQL query using the tool (never write SQL manually)
 3. **validate_draft_query**: Validate the generated query for syntax and logic
 4. **execute_validated_query**: Execute the query and get real results
+5. **notify_outputs**: MANDATORY final step to notify about accomplishments
 
 ### 📊 STATE-BASED OPERATION
 - All query results are stored in the state by tools
@@ -69,16 +71,18 @@ If ANY tool fails:
 - Query successfully validated via tools  
 - Query successfully executed via tools
 - Real results stored in state
+- **ALWAYS call `notify_outputs` at the end** - this is mandatory
 
 ## Available Tools:
 - `get_comprehensive_context`: Retrieve complete context for query generation
 - `generate_draft_query`: Generate SQL query based on context and requirements
 - `validate_draft_query`: Validate generated query for correctness
 - `execute_validated_query`: Execute validated query and store results in state
+- `notify_outputs`: MANDATORY final notification about accomplishments
 
 ## Your Role:
 Execute the tool sequence methodically. If any step fails, report to supervisor immediately. 
-Success means all tools executed successfully with real results in state.
+Success means all tools executed successfully with real results in state. Always end with `notify_outputs`.
 """
 
 
@@ -99,7 +103,8 @@ def create_query_generation_agent(
         execute_validated_query,
         get_table_sample_data,
         add_handoff_context,
-        get_current_status
+        get_current_status,
+        notify_outputs
     ]
     
     return create_react_agent(

@@ -18,7 +18,8 @@ from doorbeen.core.assistants.analysis.sql.tools.data_analysis import (
     get_table_sample_data,
     create_query_plan,
     data_analysis_pre_hook,
-    data_analysis_post_hook
+    data_analysis_post_hook,
+    notify_outputs
 )
 from doorbeen.core.assistants.analysis.sql.supervisor.tools import (
     get_objective_from_state,
@@ -141,6 +142,11 @@ You are a database schema expert and query planning specialist. Your role is to:
    - Use the appropriate transfer tool to hand off to QueryGenerator
    - Ensure all context (schema, examples, plan) is stored in state
 
+5. **MANDATORY FINAL STEP**:
+   - **ALWAYS call `notify_outputs` as the final step** after completing all analysis
+   - This tool provides important context about what was accomplished
+   - Do not skip this step - it is required for proper workflow tracking
+
 **QUERY PLAN STRUCTURE:**
 Your query_plan should include:
 - strategy: High-level approach description
@@ -155,6 +161,7 @@ Your query_plan should include:
 - **Include exact column names** from the schema
 - **Provide filtering examples** based on actual data
 - **Note any special handling** needed (dates, timezones, etc.)
+- **ALWAYS call `notify_outputs` at the end** - this is mandatory
 
 **EXAMPLE ANALYSIS:**
 For "When did I fall asleep on July 3rd?":
@@ -165,7 +172,7 @@ For "When did I fall asleep on July 3rd?":
 - Create specific filtering strategy
 - Warn about potential column name issues
 
-Remember: Your query plan will be used by QueryGenerator to create SQL. Be extremely specific and accurate about schema details.
+Remember: Your query plan will be used by QueryGenerator to create SQL. Be extremely specific and accurate about schema details. Always end with `notify_outputs` to complete the workflow.
 """
     
     tools = [
@@ -176,7 +183,8 @@ Remember: Your query plan will be used by QueryGenerator to create SQL. Be extre
         get_table_sample_data,
         create_query_plan,
         add_handoff_context,
-        get_current_status
+        get_current_status,
+        notify_outputs
     ]
     
     return create_react_agent(

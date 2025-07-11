@@ -21,6 +21,12 @@ import StreamingContainer from '~/components/Reasoning/StreamingContainer.vue'
 import { useStreaming } from '~/composables/useStreaming'
 import { useClipboard } from '@vueuse/core'
 import { Button } from '@/components/ui/button'
+import { Database, Bot, Settings, ChevronDown } from 'lucide-vue-next'
+import { Dialog as ShadDialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Toggle } from '@/components/ui/toggle'
+import ModelSelector from '~/components/Model/Selector.vue'
+import DatabaseSelector from '~/components/Database/Selector.vue'
 
 // Get thread ID from route params
 const route = useRoute()
@@ -48,7 +54,7 @@ const streaming = useStreaming();
 const { 
   getThread, 
   getThreadMessages,
-  getMessageNodeEvents,
+  getMessageAllEvents,
   createThread,
   initializeCurrentThread,
   getThreadTitle,
@@ -329,6 +335,12 @@ onMounted(async () => {
   // Load analysis mode configuration
   loadAnalysisMode()
 
+  // Check configuration status
+  checkConfigStatus()
+
+  // Load debug mode configuration
+  loadDebugMode()
+
   // Initialize thread management only if we don't have a specific thread ID from URL
   if (!threadId) {
     await initializeCurrentThread()
@@ -400,23 +412,26 @@ onMounted(async () => {
           
           // Add assistant response or placeholder
           if (group.assistant) {
-            // Try to fetch stored node events for this assistant message
+            // Try to fetch stored events for this assistant message
             let streamResponse: StreamResponse
             
             try {
-              const nodeEventsData = await getMessageNodeEvents(group.assistant.id)
+              const eventsData = await getMessageAllEvents(group.assistant.id)
               
-              if (nodeEventsData.node_events && nodeEventsData.node_events.length > 0) {
-                // Reconstruct StreamResponse from stored node events
-                const nodeOutputs = nodeEventsData.node_events.map((event: any) => ({
+              if (eventsData.events && eventsData.events.length > 0) {
+                // Reconstruct StreamResponse from stored events (including agent lifecycle events)
+                const nodeOutputs = eventsData.events.map((event: any) => ({
                   type: event.type,
                   name: event.name,
                   data: event.data,
+                  category: event.category,
+                  source: event.source,
+                  stage: event.stage,
                   occurred_at: event.occurred_at
                 }))
                 
                 streamResponse = new StreamResponse({ nodeOutputs })
-                console.log(`Reconstructed ${nodeOutputs.length} node events for assistant message ${group.assistant.id}`)
+                console.log(`Reconstructed ${nodeOutputs.length} events (including agent lifecycle) for assistant message ${group.assistant.id}`)
               } else {
                 // No stored events, create basic response
                 streamResponse = new StreamResponse({
@@ -429,7 +444,7 @@ onMounted(async () => {
                 })
               }
             } catch (error) {
-              console.warn(`Failed to fetch node events for message ${group.assistant.id}:`, error)
+              console.warn(`Failed to fetch events for message ${group.assistant.id}:`, error)
               // Fallback to basic response
               streamResponse = new StreamResponse({
                 nodeOutputs: [{
@@ -582,19 +597,54 @@ const convertNodeOutputsToEvents = (nodeOutputs: any[]) => {
   return nodeOutputs.map((output, index) => {
     let type: 'thought' | 'tool_call' | 'tool_output' | 'agent_output' = 'thought';
     
+    // Determine event type based on the event type field
     if (output.type?.includes('tool')) {
       type = 'tool_output';
     } else if (output.type?.includes('agent')) {
       type = 'agent_output';
+    } else if (output.type?.includes('assistant')) {
+      type = 'agent_output';
+    }
+    
+    // Extract agent name from various sources
+    let agentName = output.data?.agent_name || 
+                   output.source ||
+                   output.name ||
+                   undefined;
+    
+    // Clean up agent name for display
+    if (agentName) {
+      // Convert source names to display names
+      const sourceMapping: Record<string, string> = {
+        'data_analyst': 'DataAnalyst',
+        'query_generator': 'QueryGenerator', 
+        'result_processor': 'ResultProcessor',
+        'finalizer': 'Finalizer',
+        'objective_evaluator': 'ObjectiveEvaluator',
+        'supervisor': 'Supervisor'
+      };
+      agentName = sourceMapping[agentName] || agentName;
+    }
+    
+    // Create a better title based on event type and content
+    let title = output.name || 'Event';
+    if (output.type?.includes('agent:start')) {
+      title = `${agentName || 'Agent'} Started`;
+    } else if (output.type?.includes('agent:end')) {
+      title = `${agentName || 'Agent'} Completed`;
+    } else if (output.type?.includes('agent:progress')) {
+      title = `${agentName || 'Agent'} Progress`;
+    } else if (output.data?.scope) {
+      title = `${agentName || 'Agent'}: ${output.data.scope}`;
     }
     
     return {
-      id: `node-${index}-${output.occurred_at || Date.now()}`,
+      id: `event-${index}-${output.occurred_at || Date.now()}`,
       type,
-      title: output.name || 'Node Output',
-      content: output.data?.content || output.data || '',
+      title,
+      content: output.data?.content || output.data?.description || output.data || '',
       status: 'complete' as const,
-      agentName: output.data?.agent_name || undefined,
+      agentName,
       timestamp: output.occurred_at || new Date().toISOString(),
       progress: output.data?.progress || undefined
     };
@@ -620,6 +670,99 @@ const { session } = useSession()
 
 // Analysis mode state
 const currentAnalysisMode = ref<'linear' | 'supervisor'>('linear');
+
+// Configuration status tracking
+const dbConfigAvailable = ref(false)
+const modelConfigAvailable = ref(false)
+
+// Dialog states
+const isDatabaseDialogOpen = ref(false)
+const isModelDialogOpen = ref(false)
+
+// Debug mode state
+const isDebugMode = ref(false)
+
+// Load debug mode from localStorage
+const loadDebugMode = () => {
+  const storedDebugMode = localStorage.getItem('debug-mode')
+  if (storedDebugMode !== null) {
+    isDebugMode.value = storedDebugMode === 'true'
+  } else {
+    isDebugMode.value = false // Default to business user mode
+  }
+}
+
+// Toggle debug mode
+const toggleDebugMode = () => {
+  isDebugMode.value = !isDebugMode.value
+  localStorage.setItem('debug-mode', isDebugMode.value.toString())
+  console.log('Debug mode changed to:', isDebugMode.value)
+}
+
+// Event handlers for dialog closing
+const handleDBConfigSaved = () => {
+  // Add a small delay to sync with toast appearance
+  setTimeout(() => {
+    isDatabaseDialogOpen.value = false
+    checkConfigStatus() // Refresh configuration status
+  }, 500)
+}
+
+const handleModelConfigSaved = () => {
+  // Add a small delay to sync with toast appearance
+  setTimeout(() => {
+    isModelDialogOpen.value = false
+    checkConfigStatus() // Refresh configuration status
+  }, 500)
+}
+
+// Check configuration status
+const checkConfigStatus = () => {
+  // Check for existing database configuration
+  const storedDbConfig = localStorage.getItem('db-config')
+  if (storedDbConfig) {
+    try {
+      const dbConfig = JSON.parse(storedDbConfig)
+      dbConfigAvailable.value = !!(dbConfig && Object.keys(dbConfig).length > 0)
+    } catch (error) {
+      console.error('Error parsing stored database config:', error)
+      dbConfigAvailable.value = false
+    }
+  } else {
+    dbConfigAvailable.value = false
+  }
+
+  // Check for existing model configuration
+  const storedModelConfig = localStorage.getItem('model-config')
+  if (storedModelConfig) {
+    try {
+      const modelConfig = JSON.parse(storedModelConfig)
+      modelConfigAvailable.value = !!(modelConfig && Object.keys(modelConfig).length > 0)
+    } catch (error) {
+      console.error('Error parsing stored model config:', error)
+      modelConfigAvailable.value = false
+    }
+  } else {
+    modelConfigAvailable.value = false
+  }
+}
+
+// Mode selection functions
+const getModeDisplayName = (mode: 'linear' | 'supervisor') => {
+  return mode === 'linear' ? 'Linear' : 'Supervisor'
+}
+
+const getModeDescription = (mode: 'linear' | 'supervisor') => {
+  return mode === 'linear' 
+    ? 'Sequential step-by-step analysis'
+    : 'Multi-agent coordinated analysis'
+}
+
+const setMode = (mode: 'linear' | 'supervisor') => {
+  currentAnalysisMode.value = mode
+  localStorage.setItem('analysis-mode', mode)
+  console.log('Mode changed to:', mode)
+}
 </script>
 
 <template>
@@ -632,6 +775,106 @@ const currentAnalysisMode = ref<'linear' | 'supervisor'>('linear');
         <Badge variant="secondary" class="text-xs">
           {{ formatThreadDate(currentThread.updated_at) }}
         </Badge>
+      </div>
+    </div>
+
+    <!-- Configuration Controls -->
+    <div class="flex gap-dense mb-4">
+      <!-- Database Selector Button -->
+      <ShadDialog v-model:open="isDatabaseDialogOpen">
+        <DialogTrigger as-child>
+          <Button variant="outline" class="flex items-center gap-2">
+            <Database class="w-4 h-4" />
+            <span class="hidden sm:inline">Database</span>
+            <span v-if="dbConfigAvailable" class="text-green-600 dark:text-green-400 text-xs">✓</span>
+            <span v-else class="text-red-600 dark:text-red-400 text-xs">✕</span>
+          </Button>
+        </DialogTrigger>
+        <DialogContent class="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Database Configuration</DialogTitle>
+            <DialogDescription>
+              Configure your database connection settings.
+            </DialogDescription>
+          </DialogHeader>
+          <DatabaseSelector @configSaved="handleDBConfigSaved" />
+        </DialogContent>
+      </ShadDialog>
+
+      <!-- Model Selector Button -->
+      <ShadDialog v-model:open="isModelDialogOpen">
+        <DialogTrigger as-child>
+          <Button variant="outline" class="flex items-center gap-2">
+            <Bot class="w-4 h-4" />
+            <span class="hidden sm:inline">Model</span>
+            <span v-if="modelConfigAvailable" class="text-green-600 dark:text-green-400 text-xs">✓</span>
+            <span v-else class="text-red-600 dark:text-red-400 text-xs">✕</span>
+          </Button>
+        </DialogTrigger>
+        <DialogContent class="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Model Configuration</DialogTitle>
+            <DialogDescription>
+              Configure your LLM settings and API credentials.
+            </DialogDescription>
+          </DialogHeader>
+          <ModelSelector @configSaved="handleModelConfigSaved" />
+        </DialogContent>
+      </ShadDialog>
+
+      <!-- Mode Selector Dropdown -->
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" class="flex items-center gap-2">
+            <Settings class="w-4 h-4" />
+            <span class="hidden sm:inline">Mode</span>
+            <span class="text-xs text-blue-600 dark:text-blue-400">{{ getModeDisplayName(currentAnalysisMode) }}</span>
+            <ChevronDown class="w-3 h-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" class="w-56">
+          <DropdownMenuItem 
+            @click="setMode('linear')"
+            class="cursor-pointer"
+            :class="{ 'bg-blue-50 dark:bg-blue-900/20': currentAnalysisMode === 'linear' }"
+          >
+            <div class="flex flex-col">
+              <div class="flex items-center gap-2">
+                <span class="font-medium">Linear</span>
+                <span v-if="currentAnalysisMode === 'linear'" class="text-blue-600 dark:text-blue-400 text-xs">✓</span>
+              </div>
+              <span class="text-xs text-muted-foreground">{{ getModeDescription('linear') }}</span>
+            </div>
+          </DropdownMenuItem>
+          <DropdownMenuItem 
+            @click="setMode('supervisor')"
+            class="cursor-pointer"
+            :class="{ 'bg-blue-50 dark:bg-blue-900/20': currentAnalysisMode === 'supervisor' }"
+          >
+            <div class="flex flex-col">
+              <div class="flex items-center gap-2">
+                <span class="font-medium">Supervisor</span>
+                <span v-if="currentAnalysisMode === 'supervisor'" class="text-blue-600 dark:text-blue-400 text-xs">✓</span>
+              </div>
+              <span class="text-xs text-muted-foreground">{{ getModeDescription('supervisor') }}</span>
+            </div>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <!-- Debug Mode Toggle -->
+      <div class="flex items-center gap-2">
+        <Toggle 
+          :pressed="isDebugMode"
+          @click="toggleDebugMode"
+          aria-label="Toggle debug mode"
+          class="flex items-center gap-2"
+        >
+          <Settings class="w-4 h-4" />
+          <span class="hidden sm:inline">Debug</span>
+        </Toggle>
+        <span v-if="isDebugMode" class="text-orange-600 dark:text-orange-400 text-xs font-medium">ON</span>
+        <span v-else class="text-gray-500 text-xs">OFF</span>
       </div>
     </div>
 
@@ -699,9 +942,10 @@ const currentAnalysisMode = ref<'linear' | 'supervisor'>('linear');
                     <StreamingContainer 
                       v-if="message.stream && message.stream.nodeOutputs"
                       :events="convertNodeOutputsToEvents(message.stream.nodeOutputs)"
-                      @start-new-question="handleStartNewQuestion"
+                      :debug-mode="isDebugMode"
+                                      @start-new-question="handleStartNewQuestion"
                     />
-                    
+              
                     <!-- Fallback for messages without stream data -->
                     <div v-else class="p-4 border rounded-lg bg-gray-50">
                       <p class="text-gray-700">{{ message.message }}</p>
@@ -721,11 +965,12 @@ const currentAnalysisMode = ref<'linear' | 'supervisor'>('linear');
                     </div>
                   </div>
                   
-                  <StreamingContainer 
+                <StreamingContainer 
                     :events="streaming.state.thinkingSteps"
                     :final-answer="streaming.state.finalAnswer || undefined"
-                    @start-new-question="handleStartNewQuestion"
-                  />
+                    :debug-mode="isDebugMode"
+                  @start-new-question="handleStartNewQuestion"
+                />
                 </div>
               </div>
             </div>

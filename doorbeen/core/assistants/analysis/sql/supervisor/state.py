@@ -61,7 +61,7 @@ class SQLSupervisorState(AgentStateWithStructuredResponse):
     relevant_tables: Optional[List[str]] = None
     
     # New: Query planning from DataAnalyst to QueryGenerator
-    query_plan: Optional[Dict[str, Any]] = None  # Detailed plan for query generation
+    query_plan: Optional[str] = None  # Text-based detailed plan for query generation (changed from Dict)
     table_examples: Optional[Dict[str, List[Dict[str, Any]]]] = None  # Sample data from relevant tables
     schema_analysis: Optional[Dict[str, Any]] = None  # Detailed schema analysis with data types
     query_strategy: Optional[str] = None  # High-level strategy for the query
@@ -99,6 +99,7 @@ class SQLSupervisorState(AgentStateWithStructuredResponse):
     data_summary: Optional[str] = None
     trends_and_patterns: Optional[List[str]] = None
     key_insights: Optional[List[str]] = None
+    recommendations: Optional[List[str]] = None
     
     # Enhanced result processing - detailed analysis results
     dataset_overview: Optional[Dict[str, Any]] = None
@@ -111,6 +112,13 @@ class SQLSupervisorState(AgentStateWithStructuredResponse):
     categorical_analysis: Optional[Dict[str, Any]] = None
     analysis_strategy: Optional[str] = None  # "direct" or "aggregated"
     analysis_components_used: Optional[List[str]] = None
+    
+    # Grounding and examples
+    past_examples: Optional[List[Dict[str, Any]]] = None
+    similar_examples: Optional[List[Dict[str, Any]]] = None
+    guidance_instructions: Optional[List[Dict[str, Any]]] = None
+    expected_output_patterns: Optional[List[Dict[str, Any]]] = None
+    guidance_applied: bool = False
 
     # 4. ObjectiveEvaluationAgent output
     objective_evaluation: Optional[Dict[str, Any]] = None

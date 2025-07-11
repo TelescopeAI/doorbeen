@@ -31,6 +31,7 @@ from doorbeen.core.types.ts_model import TSModel
 
 from doorbeen.api.schemas.requests.assistants import AskLLMRequest
 from doorbeen.core.assistants.analysis.sql.state import SQLAssistantState
+from doorbeen.core.assistants.grounding.loader import prepare_examples_for_state
 
 
 class AssistantService(TSModel):
@@ -174,10 +175,14 @@ class AssistantService(TSModel):
 
         return graph
 
-    def create_graph_config(self, connection: Any, handler: Any, thread_id: str = None) -> Dict[str, Any]:
+    def create_graph_config(self, connection: Any, handler: Any, thread_id: str = None, examples: list = None) -> Dict[str, Any]:
         """Create and return the configuration for the graph."""
         if thread_id is None:
             thread_id = str(uuid.uuid4())
+        
+        # Prepare examples for state
+        prepared_examples = prepare_examples_for_state(examples)
+        
         return {
             "configurable": {
                 # fetch the user's database connection
@@ -188,6 +193,10 @@ class AssistantService(TSModel):
                 "thread_id": thread_id,
                 # Pass storage_manager to nodes for thread message access
                 "storage_manager": self.storage_manager,
+                # Initial state with examples
+                "initial_state": {
+                    "past_examples": prepared_examples
+                }
             },
             # Increase recursion limit to handle complex analysis workflows
             "recursion_limit": 100
@@ -445,7 +454,12 @@ class AssistantService(TSModel):
             use_supervisor=getattr(request, 'use_supervisor', False),
             agent_config=getattr(request, 'agent_config', None)
         )
-        config = self.create_graph_config(connection, model_handler, str(thread_id))
+        config = self.create_graph_config(
+            connection, 
+            model_handler, 
+            str(thread_id),
+            examples=getattr(request, 'examples', None)
+        )
         
         # 7. Decide whether to stream or collect results
         if stream:
@@ -495,7 +509,7 @@ class AssistantService(TSModel):
         4. Completion event
         """
         assistant_message_id = None
-        stored_node_events = []
+        stored_events = []
         event_processor = LangGraphEventProcessor()
         
         try:
@@ -536,7 +550,15 @@ class AssistantService(TSModel):
             ):
                 # Transform the raw langgraph event into our custom AgentEvent
                 for agent_event in event_processor.transform_event(event):
-                    yield json.dumps(agent_event, default=pydantic_encoder)
+                    event_json = json.dumps(agent_event, default=pydantic_encoder)
+                    
+                    # Store the event in the database
+                    await self._store_agent_event_if_needed(
+                        event_json, thread_id, assistant_message_id, stored_events
+                    )
+                    
+                    # Yield the event to the frontend
+                    yield event_json
                     
         except Exception as e:
             # Send error termination message
@@ -576,46 +598,89 @@ class AssistantService(TSModel):
                 # Clean up checkpointer resources
                     await CheckpointerFactory.cleanup_checkpointer(None, checkpointer_conn)
 
-    async def _store_node_event_if_needed(
+    async def _store_agent_event_if_needed(
         self, 
         chunk: str, 
         thread_id: UUID, 
         assistant_message_id: UUID, 
         stored_events: List[str]
     ) -> None:
-        """Store node execution events in real-time as they are generated."""
+        """Store agent lifecycle events in real-time as they are generated."""
         try:
-            # Parse the chunk to see if it's a node execution event
+            # Parse the chunk to see if it's an agent event
             chunk_data = json.loads(chunk.strip())
             
-            if (chunk_data.get("type") == "assistant:node:output" and 
-                chunk_data.get("name") and 
+            # Check if it's an agent event that should be stored
+            event_type = chunk_data.get("type", "")
+            event_name = chunk_data.get("name", "")
+            
+            # Define which event types should be stored
+            storable_event_types = [
+                "agent:start",
+                "agent:end", 
+                "agent:progress",
+                "agent:working",
+                "agent:error",
+                "agent:warning",
+                "agent:handoff",
+                "supervisor:routing",
+                "assistant:node:output",
+                "assistant:llm:output"
+            ]
+            
+            if (event_type in storable_event_types and 
+                event_name and 
                 chunk_data.get("data")):
                 
                 # Create a unique identifier for this event to avoid duplicates
-                event_signature = f"{chunk_data['name']}_{chunk_data.get('occurred_at', '')}"
+                occurred_at = chunk_data.get("occurred_at", "")
+                event_signature = f"{event_type}_{event_name}_{occurred_at}"
                 
                 if event_signature not in stored_events:
-                    # Store the node event as a separate message
+                    # Determine the appropriate role based on event type
+                    if event_type.startswith("agent:"):
+                        role = "agent_lifecycle_event"
+                    elif event_type.startswith("supervisor:"):
+                        role = "supervisor_event"
+                    else:
+                        role = "assistant_event"
+                    
+                    # Extract additional metadata
+                    event_data = chunk_data.get("data", {})
+                    metadata = {
+                        "assistant_message_id": str(assistant_message_id),
+                        "event_type": event_type,
+                        "event_name": event_name,
+                        "occurred_at": occurred_at,
+                        "event_signature": event_signature,
+                        "category": chunk_data.get("category", ""),
+                        "source": chunk_data.get("source", ""),
+                        "stage": chunk_data.get("stage", "")
+                    }
+                    
+                    # Add event-specific metadata
+                    if isinstance(event_data, dict):
+                        if "scope" in event_data:
+                            metadata["scope"] = event_data["scope"]
+                        if "progress" in event_data:
+                            metadata["progress"] = event_data["progress"]
+                        if "description" in event_data:
+                            metadata["description"] = event_data["description"]
+                    
+                    # Store the agent event as a separate message
                     await self.storage_manager.create_message(
                         thread_id=thread_id,
-                        content=chunk.strip(),  # Store the complete node event JSON
-                        role="node_event",
-                        metadata={
-                            "assistant_message_id": str(assistant_message_id),
-                            "node_name": chunk_data["name"],
-                            "event_type": chunk_data["type"],
-                            "occurred_at": chunk_data.get("occurred_at"),
-                            "event_signature": event_signature
-                        }
+                        content=chunk.strip(),  # Store the complete agent event JSON
+                        role=role,
+                        metadata=metadata
                     )
                     
                     stored_events.append(event_signature)
-                    logging.debug(f"[STORAGE] Stored node event: {chunk_data['name']}")
+                    logging.info(f"[STORAGE] Stored {event_type} event: {event_name}")
                     
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            # Not a parseable node event, skip storage
-            logging.debug(f"[STORAGE] Skipping non-node event chunk: {str(e)}")
+            # Not a parseable agent event, skip storage
+            logging.debug(f"[STORAGE] Skipping non-agent event chunk: {str(e)}")
             pass
 
     def _extract_final_response(self, responses: List[Dict]) -> str:

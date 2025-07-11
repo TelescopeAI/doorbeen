@@ -268,3 +268,43 @@ class StorageManager:
             node_event_models = result.scalars().all()
             
             return [Message.from_model(model) for model in node_event_models] 
+    
+    async def get_agent_events_for_message(self, assistant_message_id: UUID) -> List[Message]:
+        """Get all agent lifecycle events for a specific assistant message."""
+        self._ensure_initialized()
+        
+        async with self.session_factory() as session:
+            # Get all agent lifecycle events, supervisor events, and assistant events
+            query = (
+                select(MessageModel)
+                .where(
+                    MessageModel.role.in_(["agent_lifecycle_event", "supervisor_event", "assistant_event"]),
+                    MessageModel.message_metadata.contains(f'"assistant_message_id": "{str(assistant_message_id)}"')
+                )
+                .order_by(MessageModel.created_at)
+            )
+            
+            result = await session.execute(query)
+            agent_event_models = result.scalars().all()
+            
+            return [Message.from_model(model) for model in agent_event_models]
+    
+    async def get_all_events_for_message(self, assistant_message_id: UUID) -> List[Message]:
+        """Get all events (node events and agent lifecycle events) for a specific assistant message."""
+        self._ensure_initialized()
+        
+        async with self.session_factory() as session:
+            # Get all types of events related to this assistant message
+            query = (
+                select(MessageModel)
+                .where(
+                    MessageModel.role.in_(["node_event", "agent_lifecycle_event", "supervisor_event", "assistant_event"]),
+                    MessageModel.message_metadata.contains(f'"assistant_message_id": "{str(assistant_message_id)}"')
+                )
+                .order_by(MessageModel.created_at)
+            )
+            
+            result = await session.execute(query)
+            event_models = result.scalars().all()
+            
+            return [Message.from_model(model) for model in event_models] 

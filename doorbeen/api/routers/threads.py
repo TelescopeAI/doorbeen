@@ -430,6 +430,166 @@ async def get_message_node_events(
         )
 
 
+@ThreadsRouter.get("/messages/{message_id}/agent-events",
+                  tags=["Threads"], 
+                  operation_id="get_message_agent_events")
+async def get_message_agent_events(
+    message_id: UUID = Path(..., description="Assistant message ID")
+):
+    """Get all agent lifecycle events for a specific assistant message."""
+    try:
+        logging.info(f"[THREADS] Getting agent lifecycle events for message {message_id}")
+        
+        storage_manager = await get_storage_manager()
+        
+        # Get the assistant message first to verify it exists
+        assistant_message = await storage_manager.get_message(message_id)
+        if not assistant_message:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Message {message_id} not found"
+            )
+        
+        if assistant_message.role != "assistant":
+            raise HTTPException(
+                status_code=400,
+                detail="Agent events are only available for assistant messages"
+            )
+        
+        # Get all agent lifecycle events for this message
+        agent_events = await storage_manager.get_agent_events_for_message(message_id)
+        
+        # Parse and structure the agent events
+        structured_events = []
+        for event in agent_events:
+            try:
+                # Parse the stored JSON content
+                event_data = json.loads(event.content)
+                structured_events.append({
+                    "id": str(event.id),
+                    "type": event_data.get("type"),
+                    "name": event_data.get("name"),
+                    "data": event_data.get("data"),
+                    "category": event_data.get("category"),
+                    "source": event_data.get("source"),
+                    "stage": event_data.get("stage"),
+                    "occurred_at": event_data.get("occurred_at"),
+                    "stored_at": event.created_at,
+                    "metadata": event.metadata
+                })
+            except json.JSONDecodeError:
+                # Skip malformed events
+                logging.warning(f"[THREADS] Skipping malformed agent event {event.id}")
+                continue
+        
+        logging.info(f"[THREADS] Retrieved {len(structured_events)} agent events for message {message_id}")
+        
+        return {
+            "message_id": str(message_id),
+            "agent_events": structured_events,
+            "total_events": len(structured_events),
+            "assistant_message": {
+                "id": str(assistant_message.id),
+                "content": assistant_message.content,
+                "created_at": assistant_message.created_at,
+                "metadata": assistant_message.metadata
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"[THREADS] Error getting agent events for message {message_id}: {str(e)}")
+        logging.error(f"[THREADS] Traceback: {traceback.format_exc()}")
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get agent events: {str(e)}"
+        )
+
+
+@ThreadsRouter.get("/messages/{message_id}/all-events",
+                  tags=["Threads"], 
+                  operation_id="get_message_all_events")
+async def get_message_all_events(
+    message_id: UUID = Path(..., description="Assistant message ID")
+):
+    """Get all events (node events and agent lifecycle events) for a specific assistant message."""
+    try:
+        logging.info(f"[THREADS] Getting all events for message {message_id}")
+        
+        storage_manager = await get_storage_manager()
+        
+        # Get the assistant message first to verify it exists
+        assistant_message = await storage_manager.get_message(message_id)
+        if not assistant_message:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Message {message_id} not found"
+            )
+        
+        if assistant_message.role != "assistant":
+            raise HTTPException(
+                status_code=400,
+                detail="Events are only available for assistant messages"
+            )
+        
+        # Get all events for this message
+        all_events = await storage_manager.get_all_events_for_message(message_id)
+        
+        # Parse and structure the events
+        structured_events = []
+        for event in all_events:
+            try:
+                # Parse the stored JSON content
+                event_data = json.loads(event.content)
+                structured_events.append({
+                    "id": str(event.id),
+                    "type": event_data.get("type"),
+                    "name": event_data.get("name"),
+                    "data": event_data.get("data"),
+                    "category": event_data.get("category"),
+                    "source": event_data.get("source"),
+                    "stage": event_data.get("stage"),
+                    "occurred_at": event_data.get("occurred_at"),
+                    "stored_at": event.created_at,
+                    "role": event.role,  # Include the storage role to distinguish event types
+                    "metadata": event.metadata
+                })
+            except json.JSONDecodeError:
+                # Skip malformed events
+                logging.warning(f"[THREADS] Skipping malformed event {event.id}")
+                continue
+        
+        # Sort events by occurred_at or stored_at
+        structured_events.sort(key=lambda x: x.get("occurred_at") or x.get("stored_at"))
+        
+        logging.info(f"[THREADS] Retrieved {len(structured_events)} total events for message {message_id}")
+        
+        return {
+            "message_id": str(message_id),
+            "events": structured_events,
+            "total_events": len(structured_events),
+            "assistant_message": {
+                "id": str(assistant_message.id),
+                "content": assistant_message.content,
+                "created_at": assistant_message.created_at,
+                "metadata": assistant_message.metadata
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"[THREADS] Error getting all events for message {message_id}: {str(e)}")
+        logging.error(f"[THREADS] Traceback: {traceback.format_exc()}")
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get all events: {str(e)}"
+        )
+
+
 async def cleanup_threads_storage():
     """Clean up the global storage manager."""
     global _storage_manager

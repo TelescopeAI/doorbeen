@@ -1048,7 +1048,7 @@ async def generate_insights_summary(
     state: Annotated[dict, InjectedState],
     tool_call_id: Annotated[str, InjectedToolCallId]
 ) -> Command:
-    """Generate a comprehensive insights summary from all analysis results and update state for finalizer."""
+    """Generate a comprehensive insights summary from execution results and any available analysis results."""
     
     try:
         # Emit initial progress event
@@ -1058,7 +1058,7 @@ async def generate_insights_summary(
             "data": {
                 "scope": "ResultProcessing",
                 "description": "Generating comprehensive insights summary...",
-                "content": "🧠 Synthesizing all analysis results",
+                "content": "🧠 Analyzing execution results and generating insights",
                 "progress": 10
             }
         }
@@ -1091,10 +1091,37 @@ async def generate_insights_summary(
                 }
             )
         
-        # Gather all analysis results from state
+        # Gather all data from state
         user_question = state.get("input", "")
         sql_query = state.get("sql_query", "")
         execution_results = state.get("execution_results", [])
+        
+        # Check if we have execution results
+        if not execution_results:
+            error_event = {
+                "type": "agent:warning",
+                "name": "ResultProcessing",
+                "data": {
+                    "scope": "ResultProcessing",
+                    "description": "No execution results available for analysis",
+                    "content": "⚠️ No query results to analyze",
+                    "progress": 0
+                }
+            }
+            
+            tool_message = ToolMessage(
+                content="⚠️ No execution results available for analysis",
+                tool_call_id=tool_call_id
+            )
+            
+            return Command(
+                update={
+                    "messages": [tool_message],
+                    "agent_lifecycle_events": [start_progress_event, error_event]
+                }
+            )
+        
+        # Get optional analysis results from other tools (if available)
         dataset_overview = state.get("dataset_overview", {})
         top_values_analysis = state.get("top_values_analysis", {})
         aggregation_analysis = state.get("aggregation_analysis", {})
@@ -1105,89 +1132,39 @@ async def generate_insights_summary(
         categorical_analysis = state.get("categorical_analysis", {})
         analysis_strategy = state.get("analysis_strategy", "direct")
         
-        # Emit synthesis progress
-        synthesis_progress_event = {
+        # Emit data analysis progress
+        analysis_progress_event = {
             "type": "agent:progress",
             "name": "ResultProcessing",
             "data": {
                 "scope": "ResultProcessing",
-                "description": "Synthesizing insights from all analysis components...",
-                "content": "🎯 Connecting analysis results to user question",
+                "description": f"Analyzing {len(execution_results)} execution results...",
+                "content": f"📊 Processing {len(execution_results)} rows of data",
                 "progress": 30
             }
         }
         
-        # Create comprehensive insights prompt for data summary
-        data_summary_prompt = f"""
-You are a senior data analyst creating a comprehensive data summary that directly addresses the user's question.
+        # Prepare execution results for analysis (limit to first 100 rows for prompt)
+        sample_results = execution_results[:100] if len(execution_results) > 100 else execution_results
+        
+        # Create comprehensive insights prompt that works with actual execution results
+        insights_prompt = f"""
+You are a senior data analyst creating comprehensive insights from SQL query execution results.
 
 USER QUESTION: {user_question}
 
 SQL QUERY EXECUTED:
 {sql_query}
 
-DATASET INFORMATION:
+EXECUTION RESULTS ({len(execution_results)} total rows, showing first {len(sample_results)} rows):
+{json.dumps(sample_results, indent=2)}
+
+DATASET SUMMARY:
 - Total rows: {len(execution_results)}
+- Sample size analyzed: {len(sample_results)}
 - Analysis strategy: {analysis_strategy}
 
-ANALYSIS RESULTS:
-
-Dataset Overview:
-{json.dumps(dataset_overview, indent=2) if dataset_overview else "No dataset overview available"}
-
-Top Values Analysis:
-{json.dumps(top_values_analysis, indent=2) if top_values_analysis else "No top values analysis available"}
-
-Aggregation Analysis:
-{json.dumps(aggregation_analysis, indent=2) if aggregation_analysis else "No aggregation analysis available"}
-
-Statistical Analysis:
-{json.dumps(statistical_analysis, indent=2) if statistical_analysis else "No statistical analysis available"}
-
-Trend Analysis:
-{json.dumps(trend_analysis, indent=2) if trend_analysis else "No trend analysis available"}
-
-Correlation Analysis:
-{json.dumps(correlation_analysis, indent=2) if correlation_analysis else "No correlation analysis available"}
-
-Outlier Analysis:
-{json.dumps(outlier_analysis, indent=2) if outlier_analysis else "No outlier analysis available"}
-
-Categorical Analysis:
-{json.dumps(categorical_analysis, indent=2) if categorical_analysis else "No categorical analysis available"}
-
-Create a comprehensive data summary that:
-1. Directly answers the user's question using the analysis results
-2. Highlights the most significant findings
-3. Includes specific numbers and statistics
-4. Explains what the data reveals about the user's question
-5. Is clear and actionable
-
-Focus on being specific to the user's question rather than generic.
-"""
-        
-        # Generate data summary
-        data_summary_response = await handler.model.ainvoke(data_summary_prompt)
-        
-        # Emit trends analysis progress
-        trends_progress_event = {
-            "type": "agent:progress",
-            "name": "ResultProcessing",
-            "data": {
-                "scope": "ResultProcessing",
-                "description": "Extracting trends and patterns...",
-                "content": "📈 Identifying key trends and patterns",
-                "progress": 60
-            }
-        }
-        
-        # Create trends and patterns prompt
-        trends_prompt = f"""
-Based on the analysis results, identify the key trends and patterns that are relevant to the user's question.
-
-USER QUESTION: {user_question}
-
-ANALYSIS RESULTS:
+ADDITIONAL ANALYSIS RESULTS (if available):
 {json.dumps({
     "dataset_overview": dataset_overview,
     "top_values_analysis": top_values_analysis,
@@ -1199,70 +1176,41 @@ ANALYSIS RESULTS:
     "categorical_analysis": categorical_analysis
 }, indent=2)}
 
-Return a JSON list of strings, each describing a specific trend or pattern found in the data.
-Focus on trends that help answer the user's question.
-Each trend should be a concise, specific statement with supporting data.
+TASK: Create a comprehensive analysis that includes:
 
-Example format:
-["Transaction volume increased by 25% in Q3 compared to Q2", "Customer retention rate is highest in the premium segment at 85%"]
+1. **DATA SUMMARY**: A clear, comprehensive summary of what the data shows in relation to the user's question. Reference specific values, trends, and patterns found in the execution results.
+
+2. **KEY INSIGHTS**: Extract 3-5 key actionable insights that directly answer the user's question. Each insight should:
+   - Be specific to the data (include actual numbers, percentages, or values)
+   - Address the user's question directly
+   - Have clear business implications
+   - Be supported by the execution results
+
+3. **TRENDS AND PATTERNS**: Identify 3-5 significant trends or patterns in the data that are relevant to the user's question. Each should:
+   - Be specific and measurable
+   - Reference actual data points from the results
+   - Explain what the trend means for the user's question
+
+4. **RECOMMENDATIONS**: Provide 2-3 actionable recommendations based on the analysis.
+
+IMPORTANT:
+- Focus on the ACTUAL execution results, not generic analysis
+- Reference specific data points, values, and findings from the results
+- Connect every insight directly to the user's question
+- Be specific rather than generic
+- Use the actual data to support every statement
+
+Return your analysis in the following JSON format:
+{{
+    "data_summary": "Comprehensive summary of the data and key findings...",
+    "key_insights": ["Specific insight 1 with data", "Specific insight 2 with data", ...],
+    "trends_and_patterns": ["Specific trend 1 with data", "Specific trend 2 with data", ...],
+    "recommendations": ["Actionable recommendation 1", "Actionable recommendation 2", ...]
+}}
 """
         
-        trends_response = await handler.model.ainvoke(trends_prompt)
-        
-        # Emit insights progress
-        insights_progress_event = {
-            "type": "agent:progress",
-            "name": "ResultProcessing",
-            "data": {
-                "scope": "ResultProcessing",
-                "description": "Extracting key insights...",
-                "content": "💡 Generating actionable insights",
-                "progress": 80
-            }
-        }
-        
-        # Create key insights prompt
-        insights_prompt = f"""
-Based on the analysis results, generate key actionable insights that directly address the user's question.
-
-USER QUESTION: {user_question}
-
-ANALYSIS RESULTS:
-{json.dumps({
-    "dataset_overview": dataset_overview,
-    "top_values_analysis": top_values_analysis,
-    "aggregation_analysis": aggregation_analysis,
-    "statistical_analysis": statistical_analysis,
-    "trend_analysis": trend_analysis,
-    "correlation_analysis": correlation_analysis,
-    "outlier_analysis": outlier_analysis,
-    "categorical_analysis": categorical_analysis
-}, indent=2)}
-
-Return a JSON list of strings, each containing a key insight that helps answer the user's question.
-Focus on actionable insights with business value.
-Each insight should be specific and supported by the data.
-
-Example format:
-["The top 3 product categories account for 60% of total revenue, suggesting opportunity for focused marketing", "Customer churn is 3x higher in the first month, indicating need for improved onboarding"]
-"""
-        
+        # Generate comprehensive insights
         insights_response = await handler.model.ainvoke(insights_prompt)
-        
-        # Parse JSON responses
-        try:
-            trends_list = json.loads(trends_response.content)
-            if not isinstance(trends_list, list):
-                trends_list = [trends_response.content]
-        except:
-            trends_list = [trends_response.content]
-        
-        try:
-            insights_list = json.loads(insights_response.content)
-            if not isinstance(insights_list, list):
-                insights_list = [insights_response.content]
-        except:
-            insights_list = [insights_response.content]
         
         # Emit completion progress
         completion_progress_event = {
@@ -1271,10 +1219,34 @@ Example format:
             "data": {
                 "scope": "ResultProcessing",
                 "description": "Comprehensive insights summary generated",
-                "content": f"✅ Generated {len(insights_list)} insights and {len(trends_list)} trends",
+                "content": "✅ Generated comprehensive insights from execution results",
                 "progress": 100
             }
         }
+        
+        # Parse the JSON response
+        try:
+            insights_data = json.loads(insights_response.content)
+            
+            data_summary = insights_data.get("data_summary", "")
+            key_insights = insights_data.get("key_insights", [])
+            trends_and_patterns = insights_data.get("trends_and_patterns", [])
+            recommendations = insights_data.get("recommendations", [])
+            
+            # Ensure all fields are lists where expected
+            if not isinstance(key_insights, list):
+                key_insights = [key_insights] if key_insights else []
+            if not isinstance(trends_and_patterns, list):
+                trends_and_patterns = [trends_and_patterns] if trends_and_patterns else []
+            if not isinstance(recommendations, list):
+                recommendations = [recommendations] if recommendations else []
+                
+        except json.JSONDecodeError:
+            # Fallback if JSON parsing fails
+            data_summary = insights_response.content
+            key_insights = ["Analysis completed - see data summary for details"]
+            trends_and_patterns = ["Trends identified - see data summary for details"]
+            recommendations = ["Recommendations provided - see data summary for details"]
         
         # Track which analysis components were used
         analysis_components_used = [
@@ -1285,8 +1257,11 @@ Example format:
             ] if state.get(key)
         ]
         
+        # Add execution_results as a component since we always use it
+        analysis_components_used.append("execution_results")
+        
         tool_message = ToolMessage(
-            content=f"✅ Comprehensive insights summary generated - {len(insights_list)} insights, {len(trends_list)} trends",
+            content=f"✅ Comprehensive insights generated from {len(execution_results)} execution results - {len(key_insights)} insights, {len(trends_and_patterns)} trends, {len(recommendations)} recommendations",
             tool_call_id=tool_call_id
         )
         
@@ -1294,11 +1269,12 @@ Example format:
         return Command(
             update={
                 "messages": [tool_message],
-                "agent_lifecycle_events": [start_progress_event, synthesis_progress_event, trends_progress_event, insights_progress_event, completion_progress_event],
+                "agent_lifecycle_events": [start_progress_event, analysis_progress_event, completion_progress_event],
                 # Core fields expected by finalizer
-                "data_summary": data_summary_response.content,
-                "trends_and_patterns": trends_list,
-                "key_insights": insights_list,
+                "data_summary": data_summary,
+                "key_insights": key_insights,
+                "trends_and_patterns": trends_and_patterns,
+                "recommendations": recommendations,
                 # Additional tracking fields
                 "analysis_components_used": analysis_components_used,
                 "analysis_strategy": analysis_strategy
@@ -1331,6 +1307,108 @@ Example format:
         )
 
 
+@tool
+async def notify_outputs(
+    config: Annotated[RunnableConfig, "Configuration"],
+    state: Annotated[dict, InjectedState],
+    tool_call_id: Annotated[str, InjectedToolCallId]
+) -> Command:
+    """Notify about the outputs and accomplishments of the result processing agent."""
+    
+    try:
+        # Extract relevant information from state
+        data_summary = state.get("data_summary", "")
+        key_insights = state.get("key_insights", [])
+        trends_and_patterns = state.get("trends_and_patterns", [])
+        recommendations = state.get("recommendations", [])
+        analysis_components = state.get("analysis_components_used", [])
+        analysis_strategy = state.get("analysis_strategy", "direct")
+        execution_results = state.get("execution_results", [])
+        
+        # Build contextual content
+        content_parts = ["📊 Result Analysis Complete"]
+        
+        # Add data processing summary
+        if execution_results:
+            content_parts.append(f"\n**Data Processed:** {len(execution_results)} rows analyzed")
+        
+        # Add analysis strategy
+        content_parts.append(f"**Analysis Method:** {analysis_strategy}")
+        
+        # Add key findings summary
+        findings_summary = []
+        if key_insights:
+            findings_summary.append(f"{len(key_insights)} insights")
+        if trends_and_patterns:
+            findings_summary.append(f"{len(trends_and_patterns)} trends")
+        if recommendations:
+            findings_summary.append(f"{len(recommendations)} recommendations")
+        
+        if findings_summary:
+            content_parts.append(f"**Generated:** {', '.join(findings_summary)}")
+        
+        # Add sample insight if available
+        if key_insights and len(key_insights) > 0:
+            first_insight = key_insights[0]
+            if len(first_insight) > 100:
+                first_insight = first_insight[:100] + "..."
+            content_parts.append(f"\n**Key Finding:** {first_insight}")
+        
+        # Add analysis components used
+        if analysis_components:
+            # Filter out 'execution_results' since it's always present
+            components = [comp for comp in analysis_components if comp != "execution_results"]
+            if components:
+                content_parts.append(f"**Analysis Tools:** {', '.join(components[:3])}")
+        
+        # Create the notification event
+        notification_event = {
+            "type": "agent:end",
+            "name": "ResultProcessing",
+            "data": {
+                "scope": "ResultProcessing",
+                "description": f"Completed {analysis_strategy} analysis with {len(key_insights)} insights and {len(trends_and_patterns)} trends",
+                "content": "\n".join(content_parts)
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content="✅ Result processing outputs notified",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [notification_event]
+            }
+        )
+        
+    except Exception as e:
+        error_event = {
+            "type": "agent:error",
+            "name": "ResultProcessing",
+            "data": {
+                "scope": "ResultProcessing",
+                "description": f"Output notification failed: {str(e)}",
+                "content": f"❌ Failed to notify outputs: {str(e)}",
+                "progress": 0
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content=f"❌ Output notification failed: {str(e)}",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [error_event]
+            }
+        )
+
+
 def result_processing_pre_hook(state: Annotated[dict, InjectedState]) -> dict:
     """Pre-model hook for result processing agent - emits agent start event"""
     data = state.get("execution_results", [])
@@ -1349,12 +1427,51 @@ def result_processing_pre_hook(state: Annotated[dict, InjectedState]) -> dict:
 
 
 def result_processing_post_hook(state: Annotated[dict, InjectedState]) -> dict:
-    """Post-model hook for result processing agent - emits agent end event"""
+    """Post-model hook for result processing agent - emits agent end event with contextual information"""
+    # Extract relevant information from state
     data_summary = state.get("data_summary", "")
     key_insights = state.get("key_insights", [])
     trends_and_patterns = state.get("trends_and_patterns", [])
+    recommendations = state.get("recommendations", [])
     analysis_components = state.get("analysis_components_used", [])
     analysis_strategy = state.get("analysis_strategy", "direct")
+    execution_results = state.get("execution_results", [])
+    
+    # Build contextual content
+    content_parts = ["📊 Result Analysis Complete"]
+    
+    # Add data processing summary
+    if execution_results:
+        content_parts.append(f"\n**Data Processed:** {len(execution_results)} rows analyzed")
+    
+    # Add analysis strategy
+    content_parts.append(f"**Analysis Method:** {analysis_strategy}")
+    
+    # Add key findings summary
+    findings_summary = []
+    if key_insights:
+        findings_summary.append(f"{len(key_insights)} insights")
+    if trends_and_patterns:
+        findings_summary.append(f"{len(trends_and_patterns)} trends")
+    if recommendations:
+        findings_summary.append(f"{len(recommendations)} recommendations")
+    
+    if findings_summary:
+        content_parts.append(f"**Generated:** {', '.join(findings_summary)}")
+    
+    # Add sample insight if available
+    if key_insights and len(key_insights) > 0:
+        first_insight = key_insights[0]
+        if len(first_insight) > 100:
+            first_insight = first_insight[:100] + "..."
+        content_parts.append(f"\n**Key Finding:** {first_insight}")
+    
+    # Add analysis components used
+    if analysis_components:
+        # Filter out 'execution_results' since it's always present
+        components = [comp for comp in analysis_components if comp != "execution_results"]
+        if components:
+            content_parts.append(f"**Analysis Tools:** {', '.join(components[:3])}")
     
     event = {
         "type": "agent:end",
@@ -1362,7 +1479,7 @@ def result_processing_post_hook(state: Annotated[dict, InjectedState]) -> dict:
         "data": {
             "scope": "ResultProcessing",
             "description": f"Completed {analysis_strategy} analysis with {len(key_insights)} insights and {len(trends_and_patterns)} trends",
-            "content": f"✅ Generated {len(key_insights)} insights and {len(trends_and_patterns)} trends using {len(analysis_components)} analysis components"
+            "content": "\n".join(content_parts)
         }
     }
     return {"agent_lifecycle_events": [event]} 

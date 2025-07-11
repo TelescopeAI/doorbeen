@@ -33,6 +33,7 @@ from doorbeen.core.assistants.analysis.sql.supervisor.tools import (
         classify_question_type,
         answer_general_knowledge_question
     )
+from doorbeen.core.assistants.grounding.tools import find_similar_examples, apply_example_guidance
     
 
 
@@ -77,7 +78,12 @@ You are an intelligent SQL Analysis Supervisor coordinating specialized agents t
 - ALWAYS start by using `classify_question_type` tool to determine if the question requires data analysis
 - This prevents unnecessary agent calls for general knowledge questions
 
-**STEP 2 - ROUTING DECISION:**
+**STEP 2 - GROUNDING (IF EXAMPLES AVAILABLE):**
+- Use `find_similar_examples` to identify relevant examples for guidance
+- Use `apply_example_guidance` to extract instructions and expected output patterns
+- This customizes the analysis based on company/user preferences
+
+**STEP 3 - ROUTING DECISION:**
 - **General Knowledge Questions**: Use `answer_general_knowledge_question` then provide the actual answer using your knowledge
 - **Data Analysis Questions**: Use the ONE-WAY agent workflow below
 
@@ -104,6 +110,8 @@ You are an intelligent SQL Analysis Supervisor coordinating specialized agents t
 **TOOLS AVAILABLE:**
 - `classify_question_type`: Classify if question needs data analysis
 - `answer_general_knowledge_question`: Mark as general knowledge and prepare for direct answer
+- `find_similar_examples`: Find examples similar to current question for guidance
+- `apply_example_guidance`: Extract guidance instructions and expected output patterns
 - `check_query_execution_status`: Check workflow progress and get detailed status
 - Agent transfer tools: `transfer_to_DataAnalyst`, `transfer_to_QueryGenerator`, `transfer_to_ResultProcessor`, `transfer_to_Finalizer`
 
@@ -114,23 +122,26 @@ You are an intelligent SQL Analysis Supervisor coordinating specialized agents t
 
 **IMPORTANT NOTES:**
 - Each agent should only be called ONCE in the workflow
-- The workflow is ONE-WAY: DataAnalyst → QueryGenerator → Finalizer
+- The workflow is ONE-WAY: DataAnalyst → QueryGenerator → ResultProcessor → Finalizer
 - Never go backwards in the workflow unless you think you are missing something that is required for the workflow to complete
 - Always check status before routing to see what has been completed
+- Use grounding tools early to customize analysis based on examples
 
 **EXAMPLE WORKFLOW:**
 1. Use `classify_question_type` → data analysis required
-2. Use `check_query_execution_status` → no schema
-3. Use `transfer_to_DataAnalyst` → schema obtained
-4. Use `check_query_execution_status` → schema available, no query
-5. Use `transfer_to_QueryGenerator` → query executed, results obtained
-6. Use `check_query_execution_status` → results available, no analysis
-7. Use `transfer_to_ResultProcessor` → comprehensive analysis completed
-8. Use `check_query_execution_status` → analysis complete, no final answer
-9. Use `transfer_to_Finalizer` → final answer generated
-10. COMPLETE
+2. Use `find_similar_examples` → found relevant examples
+3. Use `apply_example_guidance` → extracted guidance instructions
+4. Use `check_query_execution_status` → no schema
+5. Use `transfer_to_DataAnalyst` → schema obtained
+6. Use `check_query_execution_status` → schema available, no query
+7. Use `transfer_to_QueryGenerator` → query executed, results obtained
+8. Use `check_query_execution_status` → results available, no analysis
+9. Use `transfer_to_ResultProcessor` → comprehensive analysis completed
+10. Use `check_query_execution_status` → analysis complete, no final answer
+11. Use `transfer_to_Finalizer` → final answer generated
+12. COMPLETE
 
-Goal: Provide accurate answers efficiently using the ONE-WAY workflow without backtracking.
+Goal: Provide accurate answers efficiently using the ONE-WAY workflow with example-guided analysis.
 """
 
     supervisor_tools = [
@@ -151,7 +162,9 @@ Goal: Provide accurate answers efficiently using the ONE-WAY workflow without ba
         get_handoff_context,
         check_query_execution_status,
         classify_question_type,
-        answer_general_knowledge_question
+        answer_general_knowledge_question,
+        find_similar_examples,
+        apply_example_guidance
     ]
 
 

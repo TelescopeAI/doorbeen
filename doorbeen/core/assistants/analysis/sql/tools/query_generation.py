@@ -50,7 +50,7 @@ async def get_comprehensive_context(
         logging.info(f"[GET_COMPREHENSIVE_CONTEXT] Table examples found: {bool(table_examples)}")
         logging.info(f"[GET_COMPREHENSIVE_CONTEXT] Schema context found: {bool(schema_context)}")
         if query_plan:
-            logging.info(f"[GET_COMPREHENSIVE_CONTEXT] Query plan keys: {list(query_plan.keys())}")
+            logging.info(f"[GET_COMPREHENSIVE_CONTEXT] Query plan: {query_plan}")
         if table_examples:
             logging.info(f"[GET_COMPREHENSIVE_CONTEXT] Table examples keys: {list(table_examples.keys())}")
         
@@ -227,7 +227,7 @@ async def generate_draft_query(
     
         configuration = config.get("configurable", {})
         handler: ModelHandler = configuration.get("handler")
-
+        
         if not handler:
             error_event = {
                 "type": "agent:error",
@@ -307,7 +307,7 @@ You are an expert SQL query generator. Generate a DRAFT SQL query based on the c
 **USER QUESTION:** {context['user_question']}
 
 **QUERY PLAN FROM DATAANALYST:**
-{json.dumps(query_plan, indent=2) if query_plan else "No query plan available"}
+{query_plan if query_plan else "No query plan available"}
 
 **SCHEMA CONTEXT:**
 {json.dumps(context.get('schema_context', {}), indent=2)}
@@ -334,6 +334,34 @@ You are an expert SQL query generator. Generate a DRAFT SQL query based on the c
 - If regenerating, focus on the areas identified in the regeneration guidance
 
 Generate ONLY the SQL query, no explanations.
+
+**BUSINESS CONTEXT FOR DATA USAGE:**
+The data you generate will be used to create executive-level business insights following this structure:
+
+## [Business Area] Performance Analysis
+
+**Executive Summary:** [High-level assessment of performance/trends/status]
+
+**Key Business Metrics:**
+- [Primary KPI]: [Value and trend direction]
+- [Secondary KPI]: [Value and comparison context]  
+- [Efficiency Metric]: [Performance indicator]
+- [Strategic Metric]: [Long-term health indicator]
+
+**Business Recommendation:** 
+[Clear strategic direction based on the data analysis]
+
+**Recommended Actions:**
+1. [Immediate tactical action]
+2. [Medium-term strategic initiative]
+3. [Long-term optimization opportunity]
+
+**DATA REQUIREMENTS FOR BUSINESS INSIGHTS:**
+- Include comparison data (current vs previous periods, actual vs targets, segment vs total)
+- Provide aggregated metrics suitable for executive reporting
+- Ensure data supports trend analysis and performance assessment
+- Include sufficient detail for actionable business recommendations
+- Structure results to highlight key performance drivers and outliers
 """
         
         # Emit model invocation progress
@@ -690,12 +718,12 @@ IMPORTANT: Base your analysis on the ACTUAL data samples provided. Look for exac
                 return Command(update={
                             "messages": [tool_message],
                             "agent_lifecycle_events": [start_progress_event, syntax_progress_event, semantic_progress_event, success_event],
-                            "validated_query": draft_query,
+                "validated_query": draft_query,
                             "sql_query": draft_query,  # Also set sql_query since validation passed
                             "validation_attempts": attempt,
                             "workflow_stage": "validate",
                             "semantic_validation": semantic_validation
-                        })
+            })
             else:
                 # Query has semantic issues
                 warning_event = {
@@ -819,7 +847,7 @@ async def correct_draft_query(
     
         configuration = config.get("configurable", {})
         handler: ModelHandler = configuration.get("handler")
-
+        
         if not handler:
             error_event = {
                 "type": "agent:error",
@@ -1056,32 +1084,32 @@ async def execute_validated_query(
     
         configuration = config.get("configurable", {})
         connection: CommonSQLClient = configuration.get("connection")
-
+        
         if not connection:
-            error_event = {
-                "type": "agent:error",
-                "name": "QueryGeneration",
-                "data": {
-                    "scope": "QueryGeneration",
-                    "description": "Database connection not available",
-                    "content": "❌ No database connection for execution",
-                    "progress": 0
+                error_event = {
+                    "type": "agent:error",
+                    "name": "QueryGeneration",
+                    "data": {
+                        "scope": "QueryGeneration",
+                        "description": "Database connection not available",
+                        "content": "❌ No database connection for execution",
+                        "progress": 0
+                    }
                 }
-            }
-            
-            tool_message = ToolMessage(
-                content="❌ Database connection not available",
-                tool_call_id=tool_call_id
-            )
-            
-            return Command(
-                update={
-                    "messages": [tool_message],
-                    "agent_lifecycle_events": [start_progress_event, error_event],
-                    "error": {"type": "connection_error", "message": "Database connection not available"}
-                }
-            )
-    
+                
+                tool_message = ToolMessage(
+                    content="❌ Database connection not available",
+                    tool_call_id=tool_call_id
+                )
+                
+                return Command(
+                    update={
+                        "messages": [tool_message],
+                        "agent_lifecycle_events": [start_progress_event, error_event],
+                        "error": {"type": "connection_error", "message": "Database connection not available"}
+                    }
+                )
+        
         validated_query = state.get("validated_query")
         if not validated_query:
             error_event = {
@@ -1289,6 +1317,104 @@ async def get_table_sample_data(
     # This delegates to the main implementation in data_analysis.py
     from doorbeen.core.assistants.analysis.sql.tools.data_analysis import get_table_sample_data as get_sample
     return await get_sample(config, state, table_name, tool_call_id, sample_size)
+
+
+@tool
+async def notify_outputs(
+    config: Annotated[RunnableConfig, "Configuration"],
+    state: Annotated[dict, InjectedState],
+    tool_call_id: Annotated[str, InjectedToolCallId]
+) -> Command:
+    """Notify about the outputs and accomplishments of the query generation agent."""
+    
+    try:
+        # Extract relevant information from state
+        workflow_stage = state.get("workflow_stage", "unknown")
+        sql_query = state.get("sql_query")
+        execution_results = state.get("execution_results", [])
+        row_count = len(execution_results)
+        
+        # Build contextual content
+        content_parts = ["🎯 Query Generation Workflow Complete"]
+        
+        # Add workflow stage info
+        content_parts.append(f"\n**Workflow Stage:** {workflow_stage}")
+        
+        # Add final query if available
+        if sql_query:
+            content_parts.append(f"\n**Final SQL Query:**\n```sql\n{sql_query}\n```")
+        
+        # Add execution results summary
+        if execution_results:
+            content_parts.append(f"\n**Execution Results:** {row_count} rows returned")
+            
+            # Show column names from first result
+            if execution_results and row_count > 0:
+                sample_keys = list(execution_results[0].keys()) if execution_results[0] else []
+                content_parts.append(f"**Columns:** {', '.join(sample_keys)}")
+                
+                # Show a sample result
+                if execution_results[0]:
+                    content_parts.append(f"**Sample Row:** {dict(execution_results[0])}")
+        else:
+            content_parts.append(f"\n**Execution Results:** No data returned")
+        
+        # Add attempt information
+        generation_attempts = state.get("generation_attempts", 0)
+        validation_attempts = state.get("validation_attempts", 0)
+        execution_attempts = state.get("execution_attempts", 0)
+        zero_attempts = state.get("zero_result_attempts", 0)
+        
+        content_parts.append(f"\n**Attempts:** Generation: {generation_attempts}, Validation: {validation_attempts}, Execution: {execution_attempts}")
+        if zero_attempts > 0:
+            content_parts.append(f"**Zero Results:** {zero_attempts} attempts returned no data")
+        
+        # Create the notification event
+        notification_event = {
+            "type": "agent:end",
+            "name": "QueryGeneration",
+            "data": {
+                "scope": "QueryGeneration",
+                "description": f"Query generation workflow completed at stage: {workflow_stage}",
+                "content": "\n".join(content_parts)
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content="✅ Query generation outputs notified",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [notification_event]
+            }
+        )
+        
+    except Exception as e:
+        error_event = {
+            "type": "agent:error",
+            "name": "QueryGeneration",
+            "data": {
+                "scope": "QueryGeneration",
+                "description": f"Output notification failed: {str(e)}",
+                "content": f"❌ Failed to notify outputs: {str(e)}",
+                "progress": 0
+            }
+        }
+        
+        tool_message = ToolMessage(
+            content=f"❌ Output notification failed: {str(e)}",
+            tool_call_id=tool_call_id
+        )
+        
+        return Command(
+            update={
+                "messages": [tool_message],
+                "agent_lifecycle_events": [error_event]
+            }
+        )
 
 
 def query_generation_pre_hook(state: Annotated[dict, InjectedState]) -> dict:

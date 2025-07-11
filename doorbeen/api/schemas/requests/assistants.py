@@ -79,3 +79,20 @@ class AskLLMRequest(TSModel):
             }
         ]
     )
+
+    # Grounding examples for context-aware analysis
+    examples: Optional[list] = Field(
+        None,
+        description="Examples to guide the analysis with expected outputs and instructions",
+        examples=[
+            [
+                {
+                    "question": "How has revenue performance changed over time?",
+                    "instructions": "Focus on time-based trends, include percentage changes, highlight key periods.",
+                    "expected_output": "Revenue analysis should include: 1) Time series trends, 2) YoY changes, 3) Peak periods",
+                    "tags": ["revenue", "time-series"],
+                    "priority": 3
+                }
+            ]
+        ]
+    )

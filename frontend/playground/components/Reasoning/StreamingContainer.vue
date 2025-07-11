@@ -19,11 +19,13 @@ interface ReasoningStep {
 interface Props {
   events?: ReasoningStep[]
   finalAnswer?: string
+  debugMode?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   events: () => [],
-  finalAnswer: ''
+  finalAnswer: '',
+  debugMode: false
 })
 
 const emit = defineEmits(['start-new-question'])
@@ -80,9 +82,10 @@ const getStatusColor = (status: string) => {
     <SupervisorContainer 
       v-if="events.length > 0"
       :events="events"
+      :debug-mode="debugMode"
       @start-new-question="$emit('start-new-question', $event)"
     />
-
+    
     <!-- Final Answer Section -->
     <div v-if="finalAnswer" class="final-answer bg-green-50 border border-green-200 rounded-lg p-4">
       <div class="flex items-center space-x-2 mb-2">
@@ -111,7 +114,7 @@ const getStatusColor = (status: string) => {
       </Collapsible>
     </div>
   </div>
-</template>
+</template> 
 
 <style scoped>
 .streaming-container {
